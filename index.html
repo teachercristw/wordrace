@@ -95,13 +95,18 @@
         }
 
         .lobby-container { width: 95%; max-width: 1000px; background: rgba(255,255,255,0.9); border-radius: 30px; padding: 15px; box-shadow: 0 20px 40px rgba(3, 169, 244, 0.15); border: 8px dashed #B3E5FC; margin-bottom: 20px; }
-        .lobby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; max-height: 45vh; overflow-y: auto; padding: 10px; }
+        .lobby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 45vh; overflow-y: auto; padding: 10px; }
         
         .name-card { 
-            background: linear-gradient(145deg, #FFE082, var(--accent)); color: var(--text); padding: 8px; border-radius: 12px; font-size: clamp(0.9rem, 1.5vw, 1.2rem); text-transform: capitalize; box-shadow: 0 4px 0px #F57F17; white-space: nowrap; 
-            display: flex; justify-content: space-between; align-items: center; gap: 5px;
+            background: linear-gradient(145deg, #FFE082, var(--accent)); color: var(--text); padding: 8px 12px; border-radius: 12px; font-size: clamp(0.9rem, 1.5vw, 1.2rem); text-transform: capitalize; box-shadow: 0 4px 0px #F57F17; white-space: nowrap; 
+            display: flex; justify-content: space-between; align-items: center; gap: 8px; transition: opacity 0.3s;
         }
-        .name-card-text { overflow: hidden; text-overflow: ellipsis; flex-grow: 1; text-align: left; }
+        .name-card-text { overflow: hidden; text-overflow: ellipsis; flex-grow: 1; text-align: left; display: flex; align-items: center; gap: 6px; }
+        
+        /* Online Status Dots */
+        .dot-online { color: var(--success); text-shadow: 0 0 4px var(--success); font-size: 1.2em; }
+        .dot-offline { color: #9E9E9E; font-size: 1.2em; }
+
         .kick-btn {
             background: rgba(255, 82, 82, 0.9); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; min-width: 22px; font-size: 12px; cursor: pointer; display: flex; justify-content: center; align-items: center; font-weight: bold; padding: 0; box-shadow: 0 2px 0px #D32F2F;
         }
@@ -360,6 +365,16 @@
         </div>
 
         <div class="dash-section">
+            <label>Class Roster Access Control</label>
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <input type="checkbox" id="use-roster-toggle" style="width:20px; height:20px;">
+                <span style="font-size: 0.95rem; font-weight: bold;">Only allow names from this list to join (Prevents uninvited names)</span>
+            </div>
+            <textarea id="roster-input" class="dash-input" rows="4" placeholder="Paste student names here (one name per line)..."></textarea>
+            <p style="font-size:0.8rem; color:#666; margin-top:0;">If enabled, students must type a name exactly matching a name on this list (not case-sensitive).</p>
+        </div>
+
+        <div class="dash-section">
             <label>Tournament Question Bank</label>
             <div id="q-list" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; padding: 5px; background: white;"></div>
             
@@ -428,8 +443,10 @@
                 { promptText: "Identify this animal:", imageBase64: null, answer: "TIGER" }
             ],
             style: { fontFamily: "'Quicksand', sans-serif", fontSize: "16px" },
-            bgHome: "https://github.com/teachercristw/wordraceroundrobin/blob/main/word%20race.mp4", 
-            bgGame: "https://github.com/teachercristw/wordraceroundrobin/blob/main/word%20race.mp4"
+            bgHome: "https://raw.githubusercontent.com/teachercristw/wordraceroundrobin/main/wordrace.mp4", 
+            bgGame: "https://raw.githubusercontent.com/teachercristw/wordraceroundrobin/main/wordrace.mp4",
+            useRoster: false,
+            rosterList: []
         };
 
         const phaseInfo = {
@@ -442,7 +459,7 @@
         let appSettings = { ...defaultSettings };
         let db; let role = null; let myName = null; let myId = null; let currentPinIntent = ''; 
         let currentRoomCode = null;
-        let playerList = {}; let sysState = { status: 'lobby', matches: [], currentQ: null, vocabMemory: [], champion: null, phase: 'prelims', roundIndex: 1 };
+        let playerList = {}; let sysState = { status: 'lobby', matches: [], currentQ: null, vocabMemory: [], champion: null, phase: 'prelims', roundIndex: 1, useRoster: false, rosterList: [] };
         let physicsLoop; let bubblesData = []; let localLetterSlots = []; 
         let currentPlayingQId = null;
         let editIndex = -1;
@@ -497,7 +514,10 @@
             document.getElementById('display-room-code').innerText = currentRoomCode;
             
             db.ref(`rooms/${currentRoomCode}`).set({
-                sys: { status: 'lobby', matches: [], phase: 'prelims', roundIndex: 1 },
+                sys: { 
+                    status: 'lobby', matches: [], phase: 'prelims', roundIndex: 1, 
+                    useRoster: appSettings.useRoster || false, rosterList: appSettings.rosterList || [] 
+                },
                 players: {}
             }).then(() => {
                 initFirebaseRoomListeners();
@@ -521,6 +541,8 @@
             db.ref(`rooms/${code}/sys`).once('value').then(snap => {
                 if (snap.exists()) {
                     currentRoomCode = code;
+                    // Pre-fetch sys state to know if roster is active before joining
+                    sysState = snap.val();
                     navigate('screen-name-entry');
                 } else {
                     alert("Invalid Room Code! Please check the smartboard.");
@@ -551,24 +573,49 @@
             myName = document.getElementById('student-name-input').value.trim(); 
             if (!myName) return alert("Please type your name!"); 
             
+            // Check against Roster if feature is enabled
+            if (sysState.useRoster && sysState.rosterList) {
+                const isEnrolled = sysState.rosterList.some(n => n.toLowerCase() === myName.toLowerCase());
+                if (!isEnrolled) {
+                    return alert("Your name is not on the class roster! Please check your spelling and try again.");
+                }
+            }
+            
             initFirebaseRoomListeners();
             
-            const existingPlayer = Object.values(playerList || {}).find(p => p.name.toLowerCase() === myName.toLowerCase());
-            if (existingPlayer) { myId = existingPlayer.id; } 
-            else { myId = "student_" + Date.now() + "_" + Math.floor(Math.random() * 10000); }
+            let existingPlayer = Object.values(playerList || {}).find(p => p.name.toLowerCase() === myName.toLowerCase());
+            
+            if (existingPlayer) {
+                // Prevent duplicate logins if the person is currently active online
+                if (existingPlayer.online) {
+                    return alert("This name is already connected to the game! If you just disconnected, please wait 5 seconds and try again.");
+                }
+                myId = existingPlayer.id; 
+            } else { 
+                myId = "student_" + Date.now() + "_" + Math.floor(Math.random() * 10000); 
+            }
 
             const pRef = db.ref(`rooms/${currentRoomCode}/players/${myId}`); 
+            
+            // Setup disconnect tracking
+            pRef.child('online').onDisconnect().set(false);
+
             pRef.update({ 
-                name: myName, id: myId, 
+                name: existingPlayer ? existingPlayer.name : myName, // Keep original casing
+                id: myId, 
                 score: existingPlayer ? (existingPlayer.score || 0) : 0,
                 eliminated: existingPlayer ? (existingPlayer.eliminated || false) : false,
-                played: existingPlayer ? (existingPlayer.played || {}) : {}
-            }).then(() => { navigate('screen-wait'); updateWaitScreen(); }); 
+                played: existingPlayer ? (existingPlayer.played || {}) : {},
+                online: true
+            }).then(() => { 
+                navigate('screen-wait'); updateWaitScreen(); 
+            }); 
         }
 
         function studentLogout() { 
             if(confirm("Leave game completely?")) { 
                 if(myId && db && currentRoomCode) {
+                    db.ref(`rooms/${currentRoomCode}/players/${myId}/online`).onDisconnect().cancel();
                     db.ref(`rooms/${currentRoomCode}/players/${myId}`).remove(); 
                 }
                 goHome(); 
@@ -576,6 +623,9 @@
         }
         
         function goHome() { 
+            if (currentRoomCode && db && myId && role === 'player') {
+                db.ref(`rooms/${currentRoomCode}/players/${myId}/online`).set(false);
+            }
             if (currentRoomCode && db) {
                 db.ref(`rooms/${currentRoomCode}/players`).off();
                 db.ref(`rooms/${currentRoomCode}/sys`).off();
@@ -648,18 +698,20 @@
         }
 
         function startTournament() {
-            const players = Object.values(playerList || {}); 
-            if (players.length < 2) return alert("Need 2+ students!"); 
+            // Filter ONLY players who are actively online to avoid missing names in bracket
+            const activePlayers = Object.values(playerList || {}).filter(p => p.online); 
+            if (activePlayers.length < 2) return alert("Need 2+ ONLINE students to start!"); 
             
             let updates = {};
-            players.forEach(p => {
+            // Wipe eliminations and scores, but keep the players in the database
+            Object.values(playerList || {}).forEach(p => {
                 updates[`rooms/${currentRoomCode}/players/${p.id}/eliminated`] = false;
                 updates[`rooms/${currentRoomCode}/players/${p.id}/played`] = null;
                 updates[`rooms/${currentRoomCode}/players/${p.id}/score`] = 0;
             });
             
             db.ref().update(updates).then(() => {
-                let newMatches = createMatches(players);
+                let newMatches = createMatches(activePlayers);
                 db.ref(`rooms/${currentRoomCode}/sys`).update({ 
                     status: 'bracket', matches: newMatches, vocabMemory: [...appSettings.questions], 
                     currentQ: null, champion: null, phase: 'prelims', roundIndex: 1
@@ -672,13 +724,14 @@
             
             if (sysState.roundIndex < currentPhaseData.maxRounds) {
                 // Next round in the same phase
-                let active = Object.values(playerList).filter(p => !p.eliminated);
+                let active = Object.values(playerList).filter(p => !p.eliminated && p.online); // Ignore offline players
                 let newMatches = createMatches(active);
                 db.ref(`rooms/${currentRoomCode}/sys`).update({ 
                     status: 'bracket', matches: newMatches, currentQ: null, roundIndex: sysState.roundIndex + 1 
                 });
             } else {
                 // Advance Phase & Eliminate
+                // We score off ALL non-eliminated players, even if they momentarily disconnected
                 let active = Object.values(playerList).filter(p => !p.eliminated);
                 active.sort((a,b) => (b.score||0) - (a.score||0));
                 
@@ -697,7 +750,10 @@
                 
                 db.ref().update(updates).then(() => {
                     let newPhase = currentPhaseData.nextPhase;
-                    let newMatches = createMatches(advancing);
+                    // Only match the advancing ones who are currently online
+                    let onlineAdvancing = advancing.filter(p => p.online);
+                    let newMatches = createMatches(onlineAdvancing);
+                    
                     db.ref(`rooms/${currentRoomCode}/sys`).update({ 
                         status: 'bracket', phase: newPhase, roundIndex: 1, matches: newMatches, currentQ: null 
                     });
@@ -777,16 +833,20 @@
             const display = document.getElementById('lobby-display');
             if(display) { 
                 display.innerHTML = players.map(p => `
-                    <div class="name-card" title="${p.name}">
-                        <div class="name-card-text">${p.name} <span style="font-size:0.8rem; opacity:0.8;">(${p.score || 0} pts)</span></div>
+                    <div class="name-card" title="${p.name}" style="opacity: ${p.online ? '1' : '0.6'};">
+                        <div class="name-card-text">
+                            <span class="${p.online ? 'dot-online' : 'dot-offline'}">●</span>
+                            ${p.name}
+                        </div>
                         ${role === 'host' ? `<button class="kick-btn" onclick="kickStudent('${p.id}')" title="Remove Player">X</button>` : ''}
                     </div>
                 `).join(''); 
             }
+            const onlineCount = players.filter(p => p.online).length;
             const count = document.getElementById('lobby-count');
-            if(count) count.innerText = `Waiting for Students... (${players.length})`;
+            if(count) count.innerText = `Waiting for Students... (${onlineCount} Online)`;
             const btn = document.getElementById('start-btn');
-            if(btn) btn.className = players.length >= 2 ? 'btn btn-green' : 'btn btn-disabled';
+            if(btn) btn.className = onlineCount >= 2 ? 'btn btn-green' : 'btn btn-disabled';
         }
 
         function renderLeaderboard() {
@@ -1023,6 +1083,10 @@
             document.getElementById('font-size').value = appSettings.style.fontSize;
             document.getElementById('bg-home-url').value = appSettings.bgHome || '';
             document.getElementById('bg-game-url').value = appSettings.bgGame || '';
+            
+            document.getElementById('use-roster-toggle').checked = appSettings.useRoster || false;
+            document.getElementById('roster-input').value = (appSettings.rosterList || []).join('\n');
+
             resetEdit(); renderDashQuestions();
         }
 
@@ -1158,6 +1222,10 @@
             if(homeUrl !== '') appSettings.bgHome = homeUrl;
             if(gameUrl !== '') appSettings.bgGame = gameUrl;
             
+            appSettings.useRoster = document.getElementById('use-roster-toggle').checked;
+            const rosterText = document.getElementById('roster-input').value;
+            appSettings.rosterList = rosterText.split('\n').map(n => n.trim()).filter(n => n !== '');
+
             if(appSettings.questions.length === 0) appSettings.questions = [{promptText: "TEST", imageBase64: null, answer: "TEST"}];
             
             try {
