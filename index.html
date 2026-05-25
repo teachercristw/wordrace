@@ -95,13 +95,13 @@
         }
 
         .lobby-container { width: 95%; max-width: 1000px; background: rgba(255,255,255,0.9); border-radius: 30px; padding: 15px; box-shadow: 0 20px 40px rgba(3, 169, 244, 0.15); border: 8px dashed #B3E5FC; margin-bottom: 20px; }
-        .lobby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 45vh; overflow-y: auto; padding: 10px; }
+        .lobby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; max-height: 45vh; overflow-y: auto; padding: 10px; }
         
         .name-card { 
             background: linear-gradient(145deg, #FFE082, var(--accent)); color: var(--text); padding: 8px 12px; border-radius: 12px; font-size: clamp(0.9rem, 1.5vw, 1.2rem); text-transform: capitalize; box-shadow: 0 4px 0px #F57F17; white-space: nowrap; 
-            display: flex; justify-content: space-between; align-items: center; gap: 8px; transition: opacity 0.3s;
+            display: flex; justify-content: space-between; align-items: center; gap: 8px; transition: opacity 0.3s, background 0.3s, box-shadow 0.3s;
         }
-        .name-card-text { overflow: hidden; text-overflow: ellipsis; flex-grow: 1; text-align: left; display: flex; align-items: center; gap: 6px; }
+        .name-card-text { overflow: hidden; text-overflow: ellipsis; flex-grow: 1; text-align: left; display: flex; align-items: center; gap: 6px; font-weight: bold;}
         
         /* Online Status Dots */
         .dot-online { color: var(--success); text-shadow: 0 0 4px var(--success); font-size: 1.2em; }
@@ -180,6 +180,8 @@
         .q-item { display: flex; align-items: center; justify-content: space-between; background: white; padding: 10px; margin-bottom: 5px; border-radius: 8px; border: 1px solid #eee; }
         .q-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 5px; margin-right: 10px; }
         
+        .class-item { display: flex; align-items: center; justify-content: space-between; background: white; padding: 10px; margin-bottom: 5px; border-radius: 8px; border: 1px solid #eee; }
+
         .calc-box { background: var(--accent); padding: 10px; border-radius: 10px; font-weight: bold; color: #333; text-align: center; margin-top: 5px;}
         
         .credit-footer {
@@ -247,9 +249,17 @@
         </div>
 
         <div id="screen-host-lobby" class="screen">
+            <div style="display: flex; gap: 15px; margin-bottom: 10px; align-items: center; justify-content: center; background: rgba(255,255,255,0.9); padding: 10px 20px; border-radius: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                <label style="font-weight: bold; color: var(--primary); font-size: 1.2rem;">Active Class:</label>
+                <select id="lobby-class-select" class="dash-input" style="width: auto; margin: 0; padding: 5px 15px; font-size: 1.2rem; border-radius: 20px; font-weight: bold; background: white; border: 3px solid var(--secondary); outline: none; cursor: pointer;" onchange="updateLobbyClass()">
+                    <option value="">-- Open Room (Any Name) --</option>
+                </select>
+            </div>
+
             <div id="room-code-banner">
                 <h2 style="margin: 0; color: #333; text-shadow: none;">ROOM CODE: <span id="display-room-code" style="font-size: 1.5em; color: var(--primary); font-family: monospace;">----</span></h2>
             </div>
+            
             <h1 id="lobby-count" style="color: black; -webkit-text-stroke: 3px white; text-shadow: 4px 4px 0px rgba(0,0,0,0.3); margin-top: 0;">Waiting for Students... (0)</h1>
             <div class="lobby-container">
                 <div class="lobby-grid" id="lobby-display"></div>
@@ -364,14 +374,19 @@
             </div>
         </div>
 
+        <!-- Class Management Section -->
         <div class="dash-section">
-            <label>Class Roster Access Control</label>
-            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
-                <input type="checkbox" id="use-roster-toggle" style="width:20px; height:20px;">
-                <span style="font-size: 0.95rem; font-weight: bold;">Only allow names from this list to join (Prevents uninvited names)</span>
+            <label>Class Rosters & Management</label>
+            <p style="font-size:0.8rem; color:#666; margin-top:0;">Save your classes here. You can select an active class from the Host Lobby before you begin.</p>
+            
+            <div id="class-list" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; padding: 5px; background: white;"></div>
+            
+            <div style="background: #FFF9C4; padding: 15px; border-radius: 10px; border: 2px dashed var(--accent);">
+                <label style="color: var(--primary); font-size: 0.9rem;">Add New Class:</label>
+                <input type="text" id="new-class-name" class="dash-input" placeholder="Class Name (e.g. Grade 5A)">
+                <textarea id="new-class-roster" class="dash-input" rows="3" placeholder="Paste student names here (one name per line)..."></textarea>
+                <button onclick="addClass()" class="btn btn-green" style="width: 100%; margin: 0; padding: 10px;">+ SAVE CLASS</button>
             </div>
-            <textarea id="roster-input" class="dash-input" rows="4" placeholder="Paste student names here (one name per line)..."></textarea>
-            <p style="font-size:0.8rem; color:#666; margin-top:0;">If enabled, students must type a name exactly matching a name on this list (not case-sensitive).</p>
         </div>
 
         <div class="dash-section">
@@ -443,10 +458,9 @@
                 { promptText: "Identify this animal:", imageBase64: null, answer: "TIGER" }
             ],
             style: { fontFamily: "'Quicksand', sans-serif", fontSize: "16px" },
-            bgHome: "https://raw.githubusercontent.com/teachercristw/wordraceroundrobin/main/wordrace.mp4", 
-            bgGame: "https://raw.githubusercontent.com/teachercristw/wordraceroundrobin/main/wordrace.mp4",
-            useRoster: false,
-            rosterList: []
+            bgHome: "https://raw.githubusercontent.com/teachercristw/wordraceroundrobin/main/word%20race.mp4", 
+            bgGame: "https://raw.githubusercontent.com/teachercristw/wordraceroundrobin/main/word%20race.mp4",
+            savedClasses: [] // Array of { id, name, students: [] }
         };
 
         const phaseInfo = {
@@ -459,7 +473,8 @@
         let appSettings = { ...defaultSettings };
         let db; let role = null; let myName = null; let myId = null; let currentPinIntent = ''; 
         let currentRoomCode = null;
-        let playerList = {}; let sysState = { status: 'lobby', matches: [], currentQ: null, vocabMemory: [], champion: null, phase: 'prelims', roundIndex: 1, useRoster: false, rosterList: [] };
+        let playerList = {}; 
+        let sysState = { status: 'lobby', matches: [], currentQ: null, vocabMemory: [], champion: null, phase: 'prelims', roundIndex: 1, useRoster: false, rosterList: [] };
         let physicsLoop; let bubblesData = []; let localLetterSlots = []; 
         let currentPlayingQId = null;
         let editIndex = -1;
@@ -505,24 +520,50 @@
             } catch (e) { console.log("Firebase not connected."); }
         }
 
+        function populateClassDropdown() {
+            const select = document.getElementById('lobby-class-select');
+            select.innerHTML = '<option value="">-- Open Room (Any Name) --</option>';
+            (appSettings.savedClasses || []).forEach(c => {
+                select.innerHTML += `<option value="${c.id}">${c.name} (${c.students.length} students)</option>`;
+            });
+        }
+
         function hostCreateRoom() {
             role = 'host';
             initFirebaseBase();
             if (audioCtx.state === 'suspended') audioCtx.resume();
             
+            populateClassDropdown();
+
             currentRoomCode = Math.floor(1000 + Math.random() * 9000).toString();
             document.getElementById('display-room-code').innerText = currentRoomCode;
             
             db.ref(`rooms/${currentRoomCode}`).set({
                 sys: { 
                     status: 'lobby', matches: [], phase: 'prelims', roundIndex: 1, 
-                    useRoster: appSettings.useRoster || false, rosterList: appSettings.rosterList || [] 
+                    useRoster: false, rosterList: [] 
                 },
                 players: {}
             }).then(() => {
                 initFirebaseRoomListeners();
                 navigate('screen-host-lobby');
             });
+        }
+
+        function updateLobbyClass() {
+            if (!currentRoomCode || !db) return;
+            const classId = document.getElementById('lobby-class-select').value;
+            let activeClass = (appSettings.savedClasses || []).find(c => c.id === classId);
+            
+            if (activeClass) {
+                db.ref(`rooms/${currentRoomCode}/sys`).update({
+                    useRoster: true, rosterList: activeClass.students
+                });
+            } else {
+                db.ref(`rooms/${currentRoomCode}/sys`).update({
+                    useRoster: false, rosterList: []
+                });
+            }
         }
 
         function setRolePlayer() {
@@ -541,7 +582,6 @@
             db.ref(`rooms/${code}/sys`).once('value').then(snap => {
                 if (snap.exists()) {
                     currentRoomCode = code;
-                    // Pre-fetch sys state to know if roster is active before joining
                     sysState = snap.val();
                     navigate('screen-name-entry');
                 } else {
@@ -570,25 +610,25 @@
         }
         
         function joinLobby() { 
-            myName = document.getElementById('student-name-input').value.trim(); 
-            if (!myName) return alert("Please type your name!"); 
+            let typedName = document.getElementById('student-name-input').value.trim(); 
+            if (!typedName) return alert("Please type your name!"); 
             
             // Check against Roster if feature is enabled
-            if (sysState.useRoster && sysState.rosterList) {
-                const isEnrolled = sysState.rosterList.some(n => n.toLowerCase() === myName.toLowerCase());
-                if (!isEnrolled) {
-                    return alert("Your name is not on the class roster! Please check your spelling and try again.");
+            if (sysState.useRoster && sysState.rosterList && sysState.rosterList.length > 0) {
+                const exactMatch = sysState.rosterList.find(n => n.toLowerCase() === typedName.toLowerCase());
+                if (!exactMatch) {
+                    return alert("Your name is not on the class list! Please look at the smartboard and type your name exactly as it appears.");
                 }
+                typedName = exactMatch; // Enforce exact casing from teacher's roster
             }
             
             initFirebaseRoomListeners();
             
-            let existingPlayer = Object.values(playerList || {}).find(p => p.name.toLowerCase() === myName.toLowerCase());
+            let existingPlayer = Object.values(playerList || {}).find(p => p.name.toLowerCase() === typedName.toLowerCase());
             
             if (existingPlayer) {
-                // Prevent duplicate logins if the person is currently active online
                 if (existingPlayer.online) {
-                    return alert("This name is already connected to the game! If you just disconnected, please wait 5 seconds and try again.");
+                    return alert("This name is already connected to the game! If you just disconnected, please wait a few seconds and try again.");
                 }
                 myId = existingPlayer.id; 
             } else { 
@@ -601,13 +641,14 @@
             pRef.child('online').onDisconnect().set(false);
 
             pRef.update({ 
-                name: existingPlayer ? existingPlayer.name : myName, // Keep original casing
+                name: typedName, 
                 id: myId, 
                 score: existingPlayer ? (existingPlayer.score || 0) : 0,
                 eliminated: existingPlayer ? (existingPlayer.eliminated || false) : false,
                 played: existingPlayer ? (existingPlayer.played || {}) : {},
                 online: true
             }).then(() => { 
+                myName = typedName;
                 navigate('screen-wait'); updateWaitScreen(); 
             }); 
         }
@@ -671,11 +712,9 @@
             shuffleArray(players);
             let matches = [];
 
-            // Give BYE to odd student
             if (players.length % 2 !== 0) {
                 let byePlayer = players.pop();
                 matches.push({ p1: byePlayer, p2: { name: "NO OPPONENT", id: "bye" }, winner: byePlayer.id });
-                // Give flat bonus points immediately for getting a bye
                 db.ref(`rooms/${currentRoomCode}/players/${byePlayer.id}/score`).transaction(s => (s || 0) + 500);
             }
 
@@ -683,14 +722,12 @@
             while (pList.length > 1) {
                 let p1 = pList.shift();
                 
-                // Prioritize finding an opponent they haven't played
                 let p2Index = pList.findIndex(p => !(p1.played && p1.played[p.id]));
                 if (p2Index === -1) p2Index = 0; // fallback
                 
                 let p2 = pList.splice(p2Index, 1)[0];
                 matches.push({ p1: p1, p2: p2, winner: null });
                 
-                // Track history
                 db.ref(`rooms/${currentRoomCode}/players/${p1.id}/played/${p2.id}`).set(true); 
                 db.ref(`rooms/${currentRoomCode}/players/${p2.id}/played/${p1.id}`).set(true);
             }
@@ -698,12 +735,10 @@
         }
 
         function startTournament() {
-            // Filter ONLY players who are actively online to avoid missing names in bracket
             const activePlayers = Object.values(playerList || {}).filter(p => p.online); 
             if (activePlayers.length < 2) return alert("Need 2+ ONLINE students to start!"); 
             
             let updates = {};
-            // Wipe eliminations and scores, but keep the players in the database
             Object.values(playerList || {}).forEach(p => {
                 updates[`rooms/${currentRoomCode}/players/${p.id}/eliminated`] = false;
                 updates[`rooms/${currentRoomCode}/players/${p.id}/played`] = null;
@@ -723,15 +758,12 @@
             let currentPhaseData = phaseInfo[sysState.phase];
             
             if (sysState.roundIndex < currentPhaseData.maxRounds) {
-                // Next round in the same phase
-                let active = Object.values(playerList).filter(p => !p.eliminated && p.online); // Ignore offline players
+                let active = Object.values(playerList).filter(p => !p.eliminated && p.online);
                 let newMatches = createMatches(active);
                 db.ref(`rooms/${currentRoomCode}/sys`).update({ 
                     status: 'bracket', matches: newMatches, currentQ: null, roundIndex: sysState.roundIndex + 1 
                 });
             } else {
-                // Advance Phase & Eliminate
-                // We score off ALL non-eliminated players, even if they momentarily disconnected
                 let active = Object.values(playerList).filter(p => !p.eliminated);
                 active.sort((a,b) => (b.score||0) - (a.score||0));
                 
@@ -740,7 +772,6 @@
                     return;
                 }
 
-                // Eliminate lowest scorers based on cutoff
                 let cutoff = currentPhaseData.cutoff;
                 let advancing = active.slice(0, cutoff);
                 let eliminated = active.slice(cutoff);
@@ -750,7 +781,6 @@
                 
                 db.ref().update(updates).then(() => {
                     let newPhase = currentPhaseData.nextPhase;
-                    // Only match the advancing ones who are currently online
                     let onlineAdvancing = advancing.filter(p => p.online);
                     let newMatches = createMatches(onlineAdvancing);
                     
@@ -764,7 +794,6 @@
         function nextWord() { 
             let matches = sysState.matches || [];
             if (sysState.status === 'playing') {
-                // Force End Question - Give 0 points to unanswered matches and return to bracket
                 db.ref(`rooms/${currentRoomCode}/sys`).update({ status: 'bracket' });
                 return;
             }
@@ -800,7 +829,6 @@
                 }
                 else { navigate('screen-host-bracket'); renderBracket(); }
             } else if (role === 'player' && myId) {
-                // Handle Eliminated View
                 if (playerList[myId] && playerList[myId].eliminated) {
                     cancelAnimationFrame(physicsLoop); navigate('screen-eliminated'); return;
                 }
@@ -829,22 +857,51 @@
         }
 
         function renderLobby() {
-            const players = Object.values(playerList || {});
-            const display = document.getElementById('lobby-display');
-            if(display) { 
-                display.innerHTML = players.map(p => `
-                    <div class="name-card" title="${p.name}" style="opacity: ${p.online ? '1' : '0.6'};">
-                        <div class="name-card-text">
-                            <span class="${p.online ? 'dot-online' : 'dot-offline'}">●</span>
-                            ${p.name}
+            if (role !== 'host') return;
+            
+            let displayHTML = '';
+            let onlineCount = 0;
+
+            if (sysState.useRoster && sysState.rosterList) {
+                sysState.rosterList.forEach(rosterName => {
+                    let p = Object.values(playerList || {}).find(pl => pl.name.toLowerCase() === rosterName.toLowerCase());
+                    let isOnline = p && p.online;
+                    if (isOnline) onlineCount++;
+                    
+                    displayHTML += `
+                        <div class="name-card" style="opacity: ${isOnline ? '1' : '0.5'}; background: ${isOnline ? 'linear-gradient(145deg, #FFE082, var(--accent))' : '#CFD8DC'}; box-shadow: 0 4px 0px ${isOnline ? '#F57F17' : '#90A4AE'}; border: 2px solid ${isOnline ? 'transparent' : '#B0BEC5'};">
+                            <div class="name-card-text" style="color: ${isOnline ? 'var(--text)' : '#546E7A'};">
+                                <span class="${isOnline ? 'dot-online' : 'dot-offline'}">●</span>
+                                ${rosterName}
+                            </div>
+                            ${isOnline ? `<button class="kick-btn" onclick="kickStudent('${p.id}')" title="Remove Player">X</button>` : ''}
                         </div>
-                        ${role === 'host' ? `<button class="kick-btn" onclick="kickStudent('${p.id}')" title="Remove Player">X</button>` : ''}
-                    </div>
-                `).join(''); 
+                    `;
+                });
+            } else {
+                let players = Object.values(playerList || {});
+                displayHTML = players.map(p => {
+                    let isOnline = p.online;
+                    if(isOnline) onlineCount++;
+                    return `
+                        <div class="name-card" style="opacity: ${isOnline ? '1' : '0.5'}; background: ${isOnline ? 'linear-gradient(145deg, #FFE082, var(--accent))' : '#CFD8DC'}; box-shadow: 0 4px 0px ${isOnline ? '#F57F17' : '#90A4AE'};">
+                            <div class="name-card-text" style="color: ${isOnline ? 'var(--text)' : '#546E7A'};">
+                                <span class="${isOnline ? 'dot-online' : 'dot-offline'}">●</span>
+                                ${p.name}
+                            </div>
+                            ${role === 'host' ? `<button class="kick-btn" onclick="kickStudent('${p.id}')" title="Remove Player">X</button>` : ''}
+                        </div>
+                    `;
+                }).join(''); 
             }
-            const onlineCount = players.filter(p => p.online).length;
+
+            const display = document.getElementById('lobby-display');
+            if(display) display.innerHTML = displayHTML;
+            
             const count = document.getElementById('lobby-count');
-            if(count) count.innerText = `Waiting for Students... (${onlineCount} Online)`;
+            let expectedText = (sysState.useRoster && sysState.rosterList) ? ` / ${sysState.rosterList.length}` : '';
+            if(count) count.innerText = `Waiting for Students... (${onlineCount}${expectedText} Online)`;
+            
             const btn = document.getElementById('start-btn');
             if(btn) btn.className = onlineCount >= 2 ? 'btn btn-green' : 'btn btn-disabled';
         }
@@ -1029,10 +1086,9 @@
                     if (matchIndex !== -1) {
                         playSnd('win'); 
                         
-                        // Calculate Time-Based Score
                         let timeTaken = Date.now() - (sysState.questionStartTime || Date.now());
                         let secondsTaken = Math.floor(timeTaken / 1000);
-                        let pointsEarned = Math.max(100, 1000 - (secondsTaken * 10)); // Max 1000, drops by 10/sec, min 100
+                        let pointsEarned = Math.max(100, 1000 - (secondsTaken * 10)); 
 
                         let updates = {};
                         updates[`rooms/${currentRoomCode}/sys/matches/${matchIndex}/winner`] = myId;
@@ -1084,10 +1140,54 @@
             document.getElementById('bg-home-url').value = appSettings.bgHome || '';
             document.getElementById('bg-game-url').value = appSettings.bgGame || '';
             
-            document.getElementById('use-roster-toggle').checked = appSettings.useRoster || false;
-            document.getElementById('roster-input').value = (appSettings.rosterList || []).join('\n');
-
+            renderDashClasses();
             resetEdit(); renderDashQuestions();
+        }
+
+        function renderDashClasses() {
+            const list = document.getElementById('class-list');
+            if (!appSettings.savedClasses || appSettings.savedClasses.length === 0) {
+                list.innerHTML = '<p style="color:#666; font-size:0.9rem; text-align:center;">No classes saved yet.</p>';
+                return;
+            }
+            list.innerHTML = appSettings.savedClasses.map(c => `
+                <div class="class-item">
+                    <div>
+                        <b>${c.name}</b> <span style="font-size:0.8rem; color:#666;">(${c.students.length} students)</span>
+                    </div>
+                    <button onclick="deleteClass('${c.id}')" style="background:var(--danger); color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">X</button>
+                </div>
+            `).join('');
+        }
+
+        function addClass() {
+            const nameInput = document.getElementById('new-class-name');
+            const rosterInput = document.getElementById('new-class-roster');
+            const cName = nameInput.value.trim();
+            const cRoster = rosterInput.value.split('\n').map(n => n.trim()).filter(n => n !== '');
+
+            if (!cName) return alert("Please enter a class name!");
+            if (cRoster.length === 0) return alert("Please enter at least one student name!");
+
+            if (!appSettings.savedClasses) appSettings.savedClasses = [];
+            
+            appSettings.savedClasses.push({
+                id: 'class_' + Date.now(),
+                name: cName,
+                students: cRoster
+            });
+
+            nameInput.value = '';
+            rosterInput.value = '';
+            renderDashClasses();
+            alert("Class added successfully! Don't forget to click SAVE & APPLY before exiting settings.");
+        }
+
+        function deleteClass(id) {
+            if (confirm("Are you sure you want to delete this class?")) {
+                appSettings.savedClasses = appSettings.savedClasses.filter(c => c.id !== id);
+                renderDashClasses();
+            }
         }
 
         function renderDashQuestions() { 
@@ -1221,10 +1321,6 @@
             const gameUrl = document.getElementById('bg-game-url').value.trim();
             if(homeUrl !== '') appSettings.bgHome = homeUrl;
             if(gameUrl !== '') appSettings.bgGame = gameUrl;
-            
-            appSettings.useRoster = document.getElementById('use-roster-toggle').checked;
-            const rosterText = document.getElementById('roster-input').value;
-            appSettings.rosterList = rosterText.split('\n').map(n => n.trim()).filter(n => n !== '');
 
             if(appSettings.questions.length === 0) appSettings.questions = [{promptText: "TEST", imageBase64: null, answer: "TEST"}];
             
