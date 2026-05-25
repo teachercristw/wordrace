@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quiz Tournament: Word Race</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&family=Boogaloo&family=Bubblegum+Sans&family=Chewy&family=Comic+Neue:wght@400;700&family=Fredoka+One&family=Open+Sans:wght@400;700&family=Patrick+Hand&family=Quicksand:wght@400;700&family=Short+Stack&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- Playful & Clean Color Palette & Global Variables --- */
+        :root {
+            --primary: #FF5722;     
+            --secondary: #03A9F4;   
+            --success: #8BC34A;     
+            --danger: #FF5252;      
+            --accent: #FFCA28;      
+            --bg: #E1F5FE;          
+            --text: #263238;        
+
+            /* Dynamic Font Settings */
+            --game-font: 'Balsamiq Sans', cursive;
+            --game-base-size: 25px;
+            --game-font-weight: 700;
+        }
+
+        body { 
+            user-select: none; -webkit-user-select: none; touch-action: none; 
+            margin: 0; overflow: hidden; 
+            font-family: var(--game-font); font-size: var(--game-base-size); font-weight: var(--game-font-weight);
+            background-color: var(--bg); color: var(--text);
+            transition: font-family 0.3s, font-size 0.3s;
+        }
+
+        /* --- Dynamic Video/Image Background Engine --- */
+        #dynamic-bg {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
+            background-color: var(--bg);
+        }
+        #dynamic-bg video, #dynamic-bg img {
+            width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;
+        }
+
+        .screen {
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            padding: 2vw; text-align: center; height: 100vh; width: 100vw; box-sizing: border-box;
+            position: absolute; top: 0; left: 0; 
+            background: rgba(225, 245, 254, 0.6); 
+        }
+        .active { display: flex; }
+
+        h1 { font-size: clamp(2.5rem, 6vw, 6rem); text-shadow: 3px 3px 0px white; margin: 10px 0; }
+        h2 { font-size: clamp(1.8rem, 4vw, 4rem); text-shadow: 2px 2px 0px white; margin: 10px 0;}
+        p { font-size: clamp(1.2rem, 2.5vw, 2.5rem); text-shadow: 1px 1px 0px white; }
+
+        /* --- Rainbow Bouncing Title --- */
+        .title-container {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .bouncing-letter {
+            font-size: clamp(4rem, 10vw, 8rem);
+            font-weight: bold;
+            -webkit-text-stroke: 4px white; 
+            text-shadow: 5px 5px 0px rgba(0,0,0,0.4); 
+            animation: bounce 0.6s infinite alternate;
+        }
+        @keyframes bounce {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-25px); }
+        }
+
+        .btn {
+            background: linear-gradient(145deg, #4FC3F7, var(--secondary)); color: white; border: none;
+            padding: clamp(10px, 2vw, 20px) clamp(20px, 4vw, 45px); font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+            border-radius: 60px; cursor: pointer; box-shadow: 0 8px 0 #0288D1, 0 15px 20px rgba(0,0,0,0.2);
+            transition: all 0.1s ease; margin: 10px; font-family: inherit; font-weight: inherit; text-transform: uppercase;
+        }
+        .btn:active { transform: translateY(8px); box-shadow: 0 0px 0 #0288D1, 0 5px 10px rgba(0,0,0,0.2); }
+        .btn-orange { background: linear-gradient(145deg, #FF8A65, var(--primary)); box-shadow: 0 8px 0 #E64A19, 0 15px 20px rgba(0,0,0,0.2); }
+        .btn-green { background: linear-gradient(145deg, #AED581, var(--success)); box-shadow: 0 8px 0 #689F38, 0 15px 20px rgba(0,0,0,0.2); }
+        .btn-danger { background: linear-gradient(145deg, #FF8A80, var(--danger)); box-shadow: 0 8px 0 #D32F2F, 0 15px 20px rgba(0,0,0,0.2); }
+        .btn-disabled { background: #CFD8DC !important; box-shadow: 0 8px 0 #90A4AE !important; color: #78909C !important; cursor: not-allowed; transform: translateY(8px); }
+
+        input.large-input {
+            font-size: clamp(1.5rem, 3vw, 3rem); padding: 15px 20px; border-radius: 40px;
+            border: 6px solid var(--secondary); text-align: center; width: 85%; max-width: 500px;
+            margin-bottom: 30px; font-family: inherit; outline: none;
+        }
+
+        .lobby-container { width: 95%; max-width: 1000px; background: rgba(255,255,255,0.9); border-radius: 30px; padding: 15px; box-shadow: 0 20px 40px rgba(3, 169, 244, 0.15); border: 8px dashed #B3E5FC; margin-bottom: 20px; }
+        .lobby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; max-height: 45vh; overflow-y: auto; padding: 10px; }
+        
+        .name-card { 
+            background: linear-gradient(145deg, #FFE082, var(--accent)); color: var(--text); padding: 8px; border-radius: 12px; font-size: clamp(0.9rem, 1.5vw, 1.2rem); text-transform: capitalize; box-shadow: 0 4px 0px #F57F17; white-space: nowrap; 
+            display: flex; justify-content: space-between; align-items: center; gap: 5px;
+        }
+        .name-card-text { overflow: hidden; text-overflow: ellipsis; flex-grow: 1; text-align: left; }
+        .kick-btn {
+            background: rgba(255, 82, 82, 0.9); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; min-width: 22px; font-size: 12px; cursor: pointer; display: flex; justify-content: center; align-items: center; font-weight: bold; padding: 0; box-shadow: 0 2px 0px #D32F2F;
+        }
+        .kick-btn:active { transform: translateY(2px); box-shadow: none; }
+
+        .bracket-container { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; align-items: center; overflow-y: auto; max-height: 60vh; padding: 15px; width: 100%; }
+        .match-card { background: rgba(255,255,255,0.9); border: 5px solid #E1F5FE; border-radius: 20px; padding: 10px; width: clamp(140px, 22vw, 250px); }
+        .match-active { border-color: var(--primary); transform: scale(1.05); }
+        .p-slot { padding: 8px; margin: 5px 0; background: #F5F5F5; border-radius: 12px; color: #78909C; font-size: clamp(0.85rem, 1.5vw, 1.1rem); display: flex; justify-content: space-between; align-items: center;}
+        .p-winner { background: linear-gradient(145deg, #AED581, var(--success)) !important; color: white; box-shadow: 0 4px 0 #689F38; }
+
+        .game-header { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 5px; }
+        #game-image-display { max-height: 15vh; border-radius: 15px; display: none; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        #word-slots { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
+        .slot {
+            width: clamp(40px, 8vw, 70px); height: clamp(40px, 8vw, 70px);
+            border: 4px dashed #B0BEC5; border-radius: 15px; background: rgba(255,255,255,0.9);
+            display: flex; align-items: center; justify-content: center;
+            font-size: clamp(2rem, 5vw, 3.5rem); color: black; text-transform: uppercase; cursor: pointer; transition: background 0.2s;
+        }
+        
+        #letter-sea { 
+            position: relative; width: 95vw; height: 42vh; background: rgba(255,255,255,0.5); 
+            border: 6px solid rgba(255,255,255,0.8); border-radius: 30px; overflow: hidden; box-sizing: border-box; margin-bottom: 10px;
+        }
+        
+        .bubble {
+            position: absolute; display: flex; align-items: center; justify-content: center; 
+            font-size: clamp(2rem, 5vw, 3.5rem); color: black; font-weight: bold; cursor: pointer; text-transform: uppercase; 
+            background: radial-gradient(circle at 30% 30%, #FFFDE7, #FFF176); border-radius: 50%;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2); border: 2px solid #FBC02D;
+        }
+
+        #backspace-btn {
+            background: var(--danger); color: white; border: none; padding: 10px 30px; font-size: 1.2rem;
+            border-radius: 30px; cursor: pointer; box-shadow: 0 5px 0 #D32F2F; margin-bottom: 10px;
+        }
+        #backspace-btn:active { transform: translateY(5px); box-shadow: 0 0px 0 #D32F2F; }
+
+        .top-btn { position: fixed; z-index: 1000; padding: 10px 20px; border-radius: 30px; font-size: 1.2rem; cursor: pointer; border: 3px solid white; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-family: inherit; }
+        #leave-btn { top: 15px; left: 75px; right: auto; background: var(--danger); color: white; display: none; } 
+        
+        #home-btn { 
+            position: fixed; top: 15px; left: 15px; font-size: 20px; cursor: pointer; 
+            z-index: 1000; background: var(--secondary); border-radius: 50%; width: 45px; height: 45px; 
+            display: flex; align-items: center; justify-content: center; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: 3px solid white; color: white; padding: 0;
+        }
+        #gear { 
+            position: fixed; top: 15px; right: 15px; font-size: 25px; cursor: pointer; 
+            z-index: 1000; background: white; border-radius: 50%; width: 45px; height: 45px; 
+            display: flex; align-items: center; justify-content: center; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: 3px solid var(--secondary);
+        }
+        
+        #top-student-name {
+            display: none; position: fixed; top: 15px; left: 50%; transform: translateX(-50%);
+            background: white; color: var(--primary); padding: 5px 25px; border-radius: 30px;
+            font-size: 1.5rem; font-weight: bold; border: 4px solid var(--secondary);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15); z-index: 1000; text-transform: uppercase;
+        }
+        
+        #status-indicator { position: fixed; bottom: 15px; left: 15px; width: 20px; height: 20px; border-radius: 50%; background: #9E9E9E; z-index: 1000; border: 3px solid white; }
+
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 999; }
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 30px; z-index: 1001; width: 95%; max-width: 750px; max-height: 90vh; overflow-y: auto; color: #333; }
+        .dash-section { background: #f9f9f9; padding: 15px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #ddd; text-align: left; }
+        .dash-section label { display: block; font-weight: bold; color: var(--primary); margin-bottom: 5px; }
+        .dash-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; margin-bottom: 10px; font-size: 1rem; font-family: sans-serif;}
+        .file-upload-btn { background: var(--secondary); color: white; padding: 8px 15px; border-radius: 8px; cursor: pointer; display: inline-block; font-size: 0.9rem;}
+        .q-item { display: flex; align-items: center; justify-content: space-between; background: white; padding: 10px; margin-bottom: 5px; border-radius: 8px; border: 1px solid #eee; }
+        .q-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 5px; margin-right: 10px; }
+        
+        .calc-box { background: var(--accent); padding: 10px; border-radius: 10px; font-weight: bold; color: #333; text-align: center; margin-top: 5px;}
+        
+        .credit-footer {
+            position: absolute;
+            bottom: 15px;
+            font-size: 1.2rem;
+            color: white;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+        }
+
+        #room-code-banner {
+            background: var(--accent); 
+            padding: 10px 40px; 
+            border-radius: 40px; 
+            border: 5px solid white; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2); 
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="dynamic-bg"></div>
+    <div id="status-indicator" title="Connection Status"></div>
+    <div id="home-btn" onclick="goHome()" title="Go Home">🏠</div>
+    <div id="leave-btn" class="top-btn" onclick="studentLogout()">🚪 LEAVE</div>
+    <div id="top-student-name">Name</div>
+    <div id="gear" onclick="promptPassword('dash')">⚙️</div>
+
+    <div id="game-container">
+        <div id="screen-start" class="screen active">
+            <div class="title-container">
+                <span class="bouncing-letter" style="color: #FF5252; animation-delay: 0.0s;">W</span>
+                <span class="bouncing-letter" style="color: #FF9800; animation-delay: 0.1s;">O</span>
+                <span class="bouncing-letter" style="color: #FFCA28; animation-delay: 0.2s;">R</span>
+                <span class="bouncing-letter" style="color: #8BC34A; animation-delay: 0.3s;">D</span>
+                <span style="width: 20px;"></span>
+                <span class="bouncing-letter" style="color: #03A9F4; animation-delay: 0.4s;">R</span>
+                <span class="bouncing-letter" style="color: #9C27B0; animation-delay: 0.5s;">A</span>
+                <span class="bouncing-letter" style="color: #E91E63; animation-delay: 0.6s;">C</span>
+                <span class="bouncing-letter" style="color: #FF5722; animation-delay: 0.7s;">E</span>
+            </div>
+            
+            <p style="color: var(--secondary); background: rgba(255,255,255,0.9); padding: 10px 30px; border-radius: 30px; font-weight: bold;">A Quiz Tournament.</p>
+            
+            <div style="display:flex; flex-wrap:wrap; justify-content:center;">
+                <button class="btn btn-green" onclick="promptPassword('host')">TEACHER (Smartboard)</button>
+                <button class="btn btn-orange" onclick="setRolePlayer()">STUDENT (Device)</button>
+            </div>
+            
+            <div class="credit-footer">Made by: Teacher Cris Saranza</div>
+        </div>
+
+        <div id="screen-room-entry" class="screen">
+            <h2 style="color: var(--primary);">Enter Room Code</h2>
+            <input type="text" id="room-code-input" class="large-input" placeholder="e.g. 1234" maxlength="4" inputmode="numeric" autocomplete="off" style="text-transform: uppercase;">
+            <button class="btn btn-orange" onclick="verifyRoomCode()">NEXT</button>
+        </div>
+
+        <div id="screen-name-entry" class="screen">
+            <h2 style="color: var(--secondary);">What is your name?</h2>
+            <input type="text" id="student-name-input" class="large-input" placeholder="Type name..." maxlength="12" autocomplete="off">
+            <button class="btn btn-green" onclick="joinLobby()">JOIN GAME</button>
+        </div>
+
+        <div id="screen-host-lobby" class="screen">
+            <div id="room-code-banner">
+                <h2 style="margin: 0; color: #333; text-shadow: none;">ROOM CODE: <span id="display-room-code" style="font-size: 1.5em; color: var(--primary); font-family: monospace;">----</span></h2>
+            </div>
+            <h1 id="lobby-count" style="color: black; -webkit-text-stroke: 3px white; text-shadow: 4px 4px 0px rgba(0,0,0,0.3); margin-top: 0;">Waiting for Students... (0)</h1>
+            <div class="lobby-container">
+                <div class="lobby-grid" id="lobby-display"></div>
+            </div>
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+                <button class="btn btn-green" id="start-btn" onclick="startTournament()">START TOURNAMENT</button>
+                <button class="btn btn-danger" onclick="clearLobby()">CLEAR LOBBY</button>
+            </div>
+        </div>
+
+        <div id="screen-host-bracket" class="screen">
+            <button id="abort-btn" class="top-btn" onclick="resetGame()" style="display:none; top: 15px; left: 75px; background: var(--danger); color: white;">ABORT</button>
+            <button id="race-btn" class="top-btn" onclick="nextWord()" style="display:none; top: 15px; right: 75px; background: var(--secondary); color: white;">START QUESTION</button>
+
+            <h1 id="round-label" style="color: var(--primary); background: rgba(255,255,255,0.8); padding: 5px 20px; border-radius:20px;">Tournament Bracket</h1>
+            
+            <h2 id="host-prompt-display" style="color: var(--text); background: rgba(255,255,255,0.95); padding: 10px 20px; border-radius: 15px; display: none;"></h2>
+            <img id="host-image-display" src="" alt="Question Image" style="max-height: 20vh; border-radius: 20px; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.2); margin-bottom: 10px;">
+            <h2 id="host-word-blanks" style="color: var(--secondary); letter-spacing: 15px; margin-top: 0; font-size: clamp(3rem, 6vw, 6rem); text-shadow: 2px 2px white;"></h2>
+            
+            <div class="bracket-container" id="bracket-display"></div>
+            <div style="margin-top: 20px; display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+                <button class="btn btn-green" id="advance-btn" onclick="advanceTournamentPhase()" style="display:none;">NEXT ROUND</button>
+            </div>
+        </div>
+
+        <div id="screen-play" class="screen">
+            <div class="game-header">
+                <h2 id="game-word-prompt" style="color: var(--primary); background: rgba(255,255,255,0.9); padding: 5px 30px; border-radius: 30px; margin:0;">Look at the Smartboard!</h2>
+            </div>
+            <div id="word-slots"></div>
+            <button id="backspace-btn" onclick="triggerBackspace()">⌫ BACKSPACE</button>
+            <div id="letter-sea"></div>
+        </div>
+
+        <div id="screen-wait" class="screen">
+            <h1 id="wait-status" style="color: var(--secondary); background: rgba(255,255,255,0.8); padding: 10px 30px; border-radius: 30px;">You're In!</h1>
+            <p id="wait-subtext" style="background: rgba(255,255,255,0.95); padding: 15px 30px; border-radius: 30px;">Look at the Smartboard.</p>
+        </div>
+
+        <div id="screen-eliminated" class="screen">
+            <h1 style="color: var(--danger); background: rgba(255,255,255,0.8); padding: 10px 30px; border-radius: 30px;">Eliminated</h1>
+            <p style="background: rgba(255,255,255,0.95); padding: 15px 30px; border-radius: 30px;">You did not advance to the next round. Great job playing!</p>
+        </div>
+        
+        <div id="screen-champion" class="screen">
+            <h1 style="color: var(--accent); text-shadow: 2px 2px black;">👑 TOURNAMENT CHAMPION 👑</h1>
+            <h2 id="champion-name" style="color: var(--primary); background: rgba(255,255,255,0.95); padding: 20px 50px; border-radius: 40px; border: 6px dashed var(--secondary);">Name</h2>
+            <div id="champ-host-controls" style="margin-top: 30px; display: none;">
+                <button class="btn btn-green" onclick="showLeaderboard()">VIEW CLASS RANKING</button>
+            </div>
+            <h3 id="champ-student-text" style="display:none; background: rgba(255,255,255,0.95); padding: 15px 30px; border-radius: 30px; color: var(--text);">Great job! Wait for the teacher.</h3>
+        </div>
+
+        <div id="screen-leaderboard" class="screen">
+            <h1 style="color: var(--primary); background: rgba(255,255,255,0.8); padding: 5px 20px; border-radius: 20px;">🏆 FINAL CLASS RANKING 🏆</h1>
+            <div style="background: rgba(255,255,255,0.95); padding: 20px; border-radius: 20px; width: 95%; max-width: 600px; max-height: 50vh; overflow-y: auto; margin-bottom: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 6px solid var(--accent);">
+                <div id="leaderboard-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            </div>
+            <div id="leaderboard-host-controls" style="display: none;">
+                <button class="btn btn-green" onclick="resetGame()">BACK TO LOBBY</button>
+            </div>
+            <h3 id="leaderboard-student-text" style="display:none; background: rgba(255,255,255,0.95); padding: 15px 30px; border-radius: 30px; color: var(--text);">Check the Smartboard for your rank!</h3>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="closeModals()"></div>
+    
+    <div class="modal" id="password-modal" style="max-width: 350px; text-align: center;">
+        <h2 style="color: var(--primary); margin-top: 0;">Teacher Access</h2>
+        <input type="password" id="dash-pass-input" class="dash-input" placeholder="ENTER PIN" inputmode="numeric" style="text-align: center; font-size: 1.5rem;">
+        <button class="btn btn-green" style="width: 100%; margin: 5px 0;" onclick="verifyPassword()">ENTER</button>
+        <button class="btn btn-orange" style="width: 100%; margin: 5px 0;" onclick="closeModals()">CANCEL</button>
+    </div>
+
+    <!-- Smartboard Preview Modal -->
+    <div class="modal" id="preview-modal" style="text-align: center; max-width: 800px; background: var(--bg); border: 8px solid var(--secondary); z-index: 1005;">
+        <h3 style="color: var(--primary); margin-top: 0; background: rgba(255,255,255,0.8); display: inline-block; padding: 5px 20px; border-radius: 20px;">Smartboard Preview</h3>
+        <h2 id="preview-prompt-display" style="color: var(--text); background: rgba(255,255,255,0.95); padding: 10px 20px; border-radius: 15px; display: none;"></h2>
+        <img id="preview-image-display" src="" style="max-height: 25vh; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); margin-bottom: 10px; display: none;">
+        <h2 id="preview-word-blanks" style="color: var(--secondary); letter-spacing: 15px; margin-top: 0; font-size: clamp(3rem, 6vw, 6rem); text-shadow: 2px 2px white;"></h2>
+        <button class="btn btn-orange" style="margin-top: 20px;" onclick="closePreview()">CLOSE PREVIEW</button>
+    </div>
+
+    <div class="modal" id="dash-modal">
+        <h2 style="color: var(--primary); margin-top: 0; text-align: center;">Quiz Settings</h2>
+        
+        <div class="dash-section" style="display: flex; gap: 15px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+                <label>Website Font Style</label>
+                <select id="font-family" class="dash-input">
+                    <option value="'Balsamiq Sans', cursive">Balsamiq Sans</option>
+                    <option value="'Boogaloo', cursive">Boogaloo</option>
+                    <option value="'Bubblegum Sans', cursive">Bubblegum Sans</option>
+                    <option value="'Chewy', cursive">Chewy</option>
+                    <option value="'Comic Neue', cursive">Comic Neue</option>
+                    <option value="'Fredoka One', cursive">Fredoka One</option>
+                    <option value="'Open Sans', sans-serif">Open Sans</option>
+                    <option value="'Patrick Hand', cursive">Patrick Hand</option>
+                    <option value="'Quicksand', sans-serif">Quicksand</option>
+                    <option value="'Short Stack', cursive">Short Stack</option>
+                </select>
+                <select id="font-size" class="dash-input">
+                    <option value="14px">Small</option>
+                    <option value="16px" selected>Normal</option>
+                    <option value="18px">Large</option>
+                </select>
+            </div>
+            <div style="flex: 1; min-width: 200px; border-left: 2px solid #EEE; padding-left: 15px;">
+                <label>Match Format</label>
+                <p style="font-size:0.9rem; margin-top:0;"><strong>Rules:</strong> Prelims (5 rounds) ➔ Quarters (3 rounds) ➔ Semis (2 rounds) ➔ Championship. Points are based on answer speed!</p>
+            </div>
+        </div>
+
+        <div class="dash-section">
+            <label>Tournament Question Bank</label>
+            <div id="q-list" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; padding: 5px; background: white;"></div>
+            
+            <div style="background: #E1F5FE; padding: 15px; border-radius: 10px; border: 2px dashed var(--secondary);">
+                <label style="color: var(--secondary); font-size: 0.9rem;">Add / Edit Question:</label>
+                <input type="text" id="new-q-prompt" class="dash-input" placeholder="1. Question Text (e.g. What is the capital of France?)">
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                    <span style="font-size: 0.9rem;">2. Upload Image (Optional):</span>
+                    <input type="file" id="new-q-img" accept="image/*" style="font-size: 0.8rem;">
+                </div>
+                <input type="text" id="new-q-answer" class="dash-input" placeholder="3. Correct Answer to Bubble (e.g. PARIS) *Required" style="border-color: var(--primary);">
+                <button id="add-q-btn" onclick="addCustomQuestion()" class="btn btn-green" style="width: 100%; margin: 0; padding: 10px;">+ ADD TO BANK</button>
+            </div>
+        </div>
+
+        <div class="dash-section">
+            <label>Custom Backgrounds (Paste URL or Upload)</label>
+            <p style="font-size:0.8rem; color:#666; margin-top:0;">To use Videos (.mp4) or bypass the 5MB size limit, paste a URL directly from the internet.</p>
+            
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <span style="min-width: 150px;">Homepage BG:</span>
+                <input type="text" id="bg-home-url" class="dash-input" placeholder="Paste URL (e.g. .mp4, .gif, .jpg)" style="margin:0; flex:1;">
+                <label class="file-upload-btn"> Upload <input type="file" style="display:none;" accept="image/*,video/*" onchange="handleBgUpload('home', event)"></label>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <span style="min-width: 150px;">In-Game BG:</span>
+                <input type="text" id="bg-game-url" class="dash-input" placeholder="Paste URL (e.g. .mp4, .gif, .jpg)" style="margin:0; flex:1;">
+                <label class="file-upload-btn"> Upload <input type="file" style="display:none;" accept="image/*,video/*" onchange="handleBgUpload('game', event)"></label>
+            </div>
+            <button onclick="clearBackgrounds()" style="background: #9E9E9E; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Clear Backgrounds</button>
+        </div>
+
+        <div class="dash-section">
+            <label>Security & System Configuration</label>
+            <input type="password" id="pass-setting-input" class="dash-input" placeholder="Change Dashboard PIN">
+            <label style="font-size: 0.8rem; color: #666;">Firebase Configuration (Advanced):</label>
+            <textarea id="config-input" class="dash-input" rows="4" placeholder="Firebase JSON Config" style="font-family: monospace; font-size: 0.8rem;"></textarea>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+            <button class="btn btn-green" style="padding: 10px 20px; font-size: 1rem;" onclick="saveDash()">SAVE & APPLY</button>
+            <button class="btn btn-orange" style="padding: 10px 20px; font-size: 1rem;" onclick="exportSettings()">EXPORT GAME</button>
+        </div>
+        <div style="text-align: center; margin-top: 15px;">
+            <label style="cursor: pointer; color: var(--secondary); text-decoration: underline;">
+                Import Settings JSON
+                <input type="file" style="display: none;" accept=".json" onchange="importSettings(event)">
+            </label>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. STATE & DEFAULT SETTINGS
+        // ==========================================
+        const defaultSettings = {
+            dashPassword: "1037440", 
+            firebaseConfig: {
+                apiKey: "AIzaSyAeW720p-jxvUKu4wGjltbV-7PzXXH2Lv8",
+                authDomain: "tournament-64337.firebaseapp.com",
+                databaseURL: "https://tournament-64337-default-rtdb.firebaseio.com",
+                projectId: "tournament-64337"
+            },
+            questions: [
+                { promptText: "What color is an Apple?", imageBase64: null, answer: "RED" },
+                { promptText: "Identify this animal:", imageBase64: null, answer: "TIGER" }
+            ],
+            style: { fontFamily: "'Quicksand', sans-serif", fontSize: "16px" },
+            bgHome: "https://raw.githubusercontent.com/teachercristw/wordrace/main/wordrace.mp4", 
+            bgGame: "https://raw.githubusercontent.com/teachercristw/wordrace/main/wordrace.mp4"
+        };
+
+        const phaseInfo = {
+            'prelims': { name: "Elimination Round", maxRounds: 5, nextPhase: 'quarters', cutoff: 8 },
+            'quarters': { name: "Quarter-Finals", maxRounds: 3, nextPhase: 'semis', cutoff: 4 },
+            'semis': { name: "Semi-Finals", maxRounds: 2, nextPhase: 'finals', cutoff: 2 },
+            'finals': { name: "Championship", maxRounds: 1, nextPhase: 'champion', cutoff: 1 }
+        };
+
+        let appSettings = { ...defaultSettings };
+        let db; let role = null; let myName = null; let myId = null; let currentPinIntent = ''; 
+        let currentRoomCode = null;
+        let playerList = {}; let sysState = { status: 'lobby', matches: [], currentQ: null, vocabMemory: [], champion: null, phase: 'prelims', roundIndex: 1 };
+        let physicsLoop; let bubblesData = []; let localLetterSlots = []; 
+        let currentPlayingQId = null;
+        let editIndex = -1;
+
+        // ==========================================
+        // 2. AUDIO & VISUALS
+        // ==========================================
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSnd(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination); const now = audioCtx.currentTime;
+            if (type === 'correct') { osc.type = 'sine'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1); gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3); } 
+            else if (type === 'wrong') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3); } 
+            else if (type === 'win') { osc.type = 'square'; osc.frequency.setValueAtTime(400, now); osc.frequency.setValueAtTime(800, now + 0.2); gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6); osc.start(now); osc.stop(now + 0.6); }
+        }
+
+        function applyStylesAndBackground(screenId) {
+            document.documentElement.style.setProperty('--game-font', appSettings.style.fontFamily);
+            document.documentElement.style.setProperty('--game-base-size', appSettings.style.fontSize);
+            
+            let bgSrc = (screenId === 'screen-start' || screenId === 'screen-room-entry' || screenId === 'screen-name-entry' || screenId === 'screen-host-lobby') ? appSettings.bgHome : appSettings.bgGame;
+            const bgContainer = document.getElementById('dynamic-bg');
+            
+            if (bgSrc) {
+                if (bgSrc.match(/\.(mp4|webm|ogg)$/i) || bgSrc.startsWith('data:video')) {
+                    bgContainer.innerHTML = `<video autoplay loop muted playsinline src="${bgSrc}"></video>`;
+                } else {
+                    bgContainer.innerHTML = `<img src="${bgSrc}">`;
+                }
+            } else {
+                bgContainer.innerHTML = '';
+            }
+        }
+
+        // ==========================================
+        // 3. FIREBASE LOGIC & ROOM SETUP
+        // ==========================================
+        function initFirebaseBase() {
+            try {
+                if (firebase.apps.length === 0) firebase.initializeApp(appSettings.firebaseConfig); db = firebase.database();
+                db.ref('.info/connected').on('value', snap => document.getElementById('status-indicator').style.background = snap.val() ? "var(--success)" : "var(--danger)");
+            } catch (e) { console.log("Firebase not connected."); }
+        }
+
+        function hostCreateRoom() {
+            role = 'host';
+            initFirebaseBase();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            currentRoomCode = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('display-room-code').innerText = currentRoomCode;
+            
+            db.ref(`rooms/${currentRoomCode}`).set({
+                sys: { status: 'lobby', matches: [], phase: 'prelims', roundIndex: 1 },
+                players: {}
+            }).then(() => {
+                initFirebaseRoomListeners();
+                navigate('screen-host-lobby');
+            });
+        }
+
+        function setRolePlayer() {
+            role = 'player';
+            initFirebaseBase();
+            document.getElementById('room-code-input').value = '';
+            document.getElementById('student-name-input').value = '';
+            navigate('screen-room-entry');
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function verifyRoomCode() {
+            const code = document.getElementById('room-code-input').value.trim();
+            if (!code) return alert("Please enter a room code!");
+            
+            db.ref(`rooms/${code}/sys`).once('value').then(snap => {
+                if (snap.exists()) {
+                    currentRoomCode = code;
+                    navigate('screen-name-entry');
+                } else {
+                    alert("Invalid Room Code! Please check the smartboard.");
+                }
+            }).catch(e => alert("Connection error."));
+        }
+        
+        function initFirebaseRoomListeners() {
+            if (!currentRoomCode) return;
+            
+            db.ref(`rooms/${currentRoomCode}/players`).on('value', snap => { 
+                playerList = snap.val() || {}; 
+                if (role === 'host') renderLobby(); 
+            });
+            
+            db.ref(`rooms/${currentRoomCode}/sys`).on('value', snap => { 
+                const data = snap.val(); 
+                if (data) { 
+                    sysState = data; syncUI(); 
+                } else if (role === 'player') { 
+                    alert("The host closed this room.");
+                    goHome();
+                } 
+            });
+        }
+        
+        function joinLobby() { 
+            myName = document.getElementById('student-name-input').value.trim(); 
+            if (!myName) return alert("Please type your name!"); 
+            
+            initFirebaseRoomListeners();
+            
+            const existingPlayer = Object.values(playerList || {}).find(p => p.name.toLowerCase() === myName.toLowerCase());
+            if (existingPlayer) { myId = existingPlayer.id; } 
+            else { myId = "student_" + Date.now() + "_" + Math.floor(Math.random() * 10000); }
+
+            const pRef = db.ref(`rooms/${currentRoomCode}/players/${myId}`); 
+            pRef.update({ 
+                name: myName, id: myId, 
+                score: existingPlayer ? (existingPlayer.score || 0) : 0,
+                eliminated: existingPlayer ? (existingPlayer.eliminated || false) : false,
+                played: existingPlayer ? (existingPlayer.played || {}) : {}
+            }).then(() => { navigate('screen-wait'); updateWaitScreen(); }); 
+        }
+
+        function studentLogout() { 
+            if(confirm("Leave game completely?")) { 
+                if(myId && db && currentRoomCode) {
+                    db.ref(`rooms/${currentRoomCode}/players/${myId}`).remove(); 
+                }
+                goHome(); 
+            } 
+        }
+        
+        function goHome() { 
+            if (currentRoomCode && db) {
+                db.ref(`rooms/${currentRoomCode}/players`).off();
+                db.ref(`rooms/${currentRoomCode}/sys`).off();
+            }
+            myId = null; role = null; currentRoomCode = null;
+            cancelAnimationFrame(physicsLoop); 
+            navigate('screen-start'); 
+        }
+        
+        function kickStudent(id) {
+            if (confirm("Remove this student from the lobby?")) {
+                db.ref(`rooms/${currentRoomCode}/players/${id}`).remove();
+            }
+        }
+        
+        function clearLobby() { 
+            if(confirm("Kick all students and reset everything?")) {
+                db.ref(`rooms/${currentRoomCode}/players`).remove(); 
+            }
+        }
+        
+        function navigate(id) { 
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); 
+            document.getElementById(id).classList.add('active'); 
+            applyStylesAndBackground(id); 
+            
+            document.getElementById('leave-btn').style.display = (role === 'player' && myId && id !== 'screen-start' && id !== 'screen-room-entry') ? 'block' : 'none'; 
+            document.getElementById('home-btn').style.display = (role === 'player' && myId && id !== 'screen-start' && id !== 'screen-room-entry') ? 'flex' : (id === 'screen-start' ? 'none' : 'flex');
+            
+            const nameBadge = document.getElementById('top-student-name');
+            if (role === 'player' && myId && id !== 'screen-start' && id !== 'screen-name-entry' && id !== 'screen-room-entry') { 
+                nameBadge.style.display = 'block'; nameBadge.innerText = myName; 
+            } else { nameBadge.style.display = 'none'; }
+        }
+
+        // ==========================================
+        // 4. TOURNAMENT LOGIC (Round Robin / Speed Based)
+        // ==========================================
+        function shuffleArray(array) { for (let i = array.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [array[i], array[j]] = [array[j], array[i]]; } return array; }
+
+        function createMatches(activePlayers) {
+            let players = [...activePlayers];
+            shuffleArray(players);
+            let matches = [];
+
+            // Give BYE to odd student
+            if (players.length % 2 !== 0) {
+                let byePlayer = players.pop();
+                matches.push({ p1: byePlayer, p2: { name: "NO OPPONENT", id: "bye" }, winner: byePlayer.id });
+                // Give flat bonus points immediately for getting a bye
+                db.ref(`rooms/${currentRoomCode}/players/${byePlayer.id}/score`).transaction(s => (s || 0) + 500);
+            }
+
+            let pList = [...players];
+            while (pList.length > 1) {
+                let p1 = pList.shift();
+                
+                // Prioritize finding an opponent they haven't played
+                let p2Index = pList.findIndex(p => !(p1.played && p1.played[p.id]));
+                if (p2Index === -1) p2Index = 0; // fallback
+                
+                let p2 = pList.splice(p2Index, 1)[0];
+                matches.push({ p1: p1, p2: p2, winner: null });
+                
+                // Track history
+                db.ref(`rooms/${currentRoomCode}/players/${p1.id}/played/${p2.id}`).set(true); 
+                db.ref(`rooms/${currentRoomCode}/players/${p2.id}/played/${p1.id}`).set(true);
+            }
+            return matches;
+        }
+
+        function startTournament() {
+            const players = Object.values(playerList || {}); 
+            if (players.length < 2) return alert("Need 2+ students!"); 
+            
+            let updates = {};
+            players.forEach(p => {
+                updates[`rooms/${currentRoomCode}/players/${p.id}/eliminated`] = false;
+                updates[`rooms/${currentRoomCode}/players/${p.id}/played`] = null;
+                updates[`rooms/${currentRoomCode}/players/${p.id}/score`] = 0;
+            });
+            
+            db.ref().update(updates).then(() => {
+                let newMatches = createMatches(players);
+                db.ref(`rooms/${currentRoomCode}/sys`).update({ 
+                    status: 'bracket', matches: newMatches, vocabMemory: [...appSettings.questions], 
+                    currentQ: null, champion: null, phase: 'prelims', roundIndex: 1
+                });
+            });
+        }
+        
+        function advanceTournamentPhase() {
+            let currentPhaseData = phaseInfo[sysState.phase];
+            
+            if (sysState.roundIndex < currentPhaseData.maxRounds) {
+                // Next round in the same phase
+                let active = Object.values(playerList).filter(p => !p.eliminated);
+                let newMatches = createMatches(active);
+                db.ref(`rooms/${currentRoomCode}/sys`).update({ 
+                    status: 'bracket', matches: newMatches, currentQ: null, roundIndex: sysState.roundIndex + 1 
+                });
+            } else {
+                // Advance Phase & Eliminate
+                let active = Object.values(playerList).filter(p => !p.eliminated);
+                active.sort((a,b) => (b.score||0) - (a.score||0));
+                
+                if (currentPhaseData.nextPhase === 'champion') {
+                    db.ref(`rooms/${currentRoomCode}/sys`).update({ status: 'champion', champion: active[0] });
+                    return;
+                }
+
+                // Eliminate lowest scorers based on cutoff
+                let cutoff = currentPhaseData.cutoff;
+                let advancing = active.slice(0, cutoff);
+                let eliminated = active.slice(cutoff);
+                
+                let updates = {};
+                eliminated.forEach(p => { updates[`rooms/${currentRoomCode}/players/${p.id}/eliminated`] = true; });
+                
+                db.ref().update(updates).then(() => {
+                    let newPhase = currentPhaseData.nextPhase;
+                    let newMatches = createMatches(advancing);
+                    db.ref(`rooms/${currentRoomCode}/sys`).update({ 
+                        status: 'bracket', phase: newPhase, roundIndex: 1, matches: newMatches, currentQ: null 
+                    });
+                });
+            }
+        }
+        
+        function nextWord() { 
+            let matches = sysState.matches || [];
+            if (sysState.status === 'playing') {
+                // Force End Question - Give 0 points to unanswered matches and return to bracket
+                db.ref(`rooms/${currentRoomCode}/sys`).update({ status: 'bracket' });
+                return;
+            }
+
+            let memory = sysState.vocabMemory || [...appSettings.questions]; 
+            if (memory.length === 0) memory = [...appSettings.questions]; 
+            const q = memory.splice(Math.floor(Math.random() * memory.length), 1)[0]; 
+            q.qId = Date.now(); 
+            
+            db.ref(`rooms/${currentRoomCode}/sys`).update({ 
+                status: 'playing', currentQ: q, vocabMemory: memory, matches: matches, questionStartTime: Date.now() 
+            }); 
+        }
+        
+        function showLeaderboard() { db.ref(`rooms/${currentRoomCode}/sys`).update({ status: 'leaderboard' }); }
+        function resetGame() { if(confirm("Abort and return to lobby?")) db.ref(`rooms/${currentRoomCode}/sys`).set({ status: 'lobby', matches: [] }); }
+
+        // ==========================================
+        // 5. UI SYNC & RENDER
+        // ==========================================
+        function syncUI() {
+            if (role === 'host') {
+                if (sysState.status === 'lobby') { navigate('screen-host-lobby'); renderLobby(); }
+                else if (sysState.status === 'champion') { 
+                    navigate('screen-champion'); 
+                    document.getElementById('champion-name').innerText = sysState.champion.name + "!"; 
+                    document.getElementById('champ-host-controls').style.display = 'block'; document.getElementById('champ-student-text').style.display = 'none';
+                    playSnd('win'); 
+                }
+                else if (sysState.status === 'leaderboard') {
+                    navigate('screen-leaderboard'); renderLeaderboard();
+                    document.getElementById('leaderboard-host-controls').style.display = 'block'; document.getElementById('leaderboard-student-text').style.display = 'none';
+                }
+                else { navigate('screen-host-bracket'); renderBracket(); }
+            } else if (role === 'player' && myId) {
+                // Handle Eliminated View
+                if (playerList[myId] && playerList[myId].eliminated) {
+                    cancelAnimationFrame(physicsLoop); navigate('screen-eliminated'); return;
+                }
+
+                if (sysState.status === 'champion') { 
+                    cancelAnimationFrame(physicsLoop); navigate('screen-champion'); 
+                    document.getElementById('champion-name').innerText = sysState.champion.name + "!"; 
+                    document.getElementById('champ-host-controls').style.display = 'none'; document.getElementById('champ-student-text').style.display = 'block';
+                    if (myId === sysState.champion.id) { document.getElementById('champ-student-text').innerText = "🏆 YOU ARE THE CHAMPION! 🏆"; }
+                    else { document.getElementById('champ-student-text').innerText = "Look at the Smartboard for the winner!"; }
+                }
+                else if (sysState.status === 'leaderboard') {
+                    cancelAnimationFrame(physicsLoop); navigate('screen-leaderboard'); renderLeaderboard();
+                    document.getElementById('leaderboard-host-controls').style.display = 'none'; document.getElementById('leaderboard-student-text').style.display = 'block';
+                }
+                else if (sysState.status === 'playing') {
+                    const myMatch = (sysState.matches || []).find(m => (m.p1.id === myId || m.p2?.id === myId) && !m.winner);
+                    if (myMatch) {
+                        if (currentPlayingQId !== sysState.currentQ?.qId) {
+                            navigate('screen-play'); setupMiniGame();
+                            currentPlayingQId = sysState.currentQ?.qId;
+                        }
+                    } else { cancelAnimationFrame(physicsLoop); navigate('screen-wait'); updateWaitScreen(); }
+                } else { cancelAnimationFrame(physicsLoop); navigate('screen-wait'); updateWaitScreen(); }
+            }
+        }
+
+        function renderLobby() {
+            const players = Object.values(playerList || {});
+            const display = document.getElementById('lobby-display');
+            if(display) { 
+                display.innerHTML = players.map(p => `
+                    <div class="name-card" title="${p.name}">
+                        <div class="name-card-text">${p.name} <span style="font-size:0.8rem; opacity:0.8;">(${p.score || 0} pts)</span></div>
+                        ${role === 'host' ? `<button class="kick-btn" onclick="kickStudent('${p.id}')" title="Remove Player">X</button>` : ''}
+                    </div>
+                `).join(''); 
+            }
+            const count = document.getElementById('lobby-count');
+            if(count) count.innerText = `Waiting for Students... (${players.length})`;
+            const btn = document.getElementById('start-btn');
+            if(btn) btn.className = players.length >= 2 ? 'btn btn-green' : 'btn btn-disabled';
+        }
+
+        function renderLeaderboard() {
+            const players = Object.values(playerList || {});
+            players.sort((a, b) => (b.score || 0) - (a.score || 0));
+            
+            document.getElementById('leaderboard-list').innerHTML = players.map((p, i) => `
+                <div style="display: flex; justify-content: space-between; font-size: clamp(1.2rem, 3vw, 1.8rem); padding: 15px; background: ${p.eliminated ? '#FFCDD2' : (i === 0 ? '#FFE082' : '#F5F5F5')}; border-radius: 10px; font-weight: bold; ${myId === p.id ? 'border: 3px solid var(--secondary);' : ''}">
+                    <span>${i === 0 ? '👑 ' : ''}#${i + 1} ${p.name} ${myId === p.id ? '(YOU)' : ''}</span>
+                    <span style="color: var(--primary);">${p.score || 0} pts</span>
+                </div>
+            `).join('');
+        }
+
+        function renderBracket() {
+            let allFinished = true;
+            document.getElementById('bracket-display').innerHTML = (sysState.matches || []).map(m => {
+                if (!m.winner) allFinished = false;
+                
+                return `<div class="match-card ${sysState.status === 'playing' && !m.winner ? 'match-active' : ''}">
+                    <div class="p-slot ${m.winner === m.p1.id ? 'p-winner' : ''}">
+                        <span>${m.p1.name}</span> <b style="color:var(--primary); font-size: 1rem;">${playerList[m.p1.id]?.score || 0}</b>
+                    </div>
+                    <div class="p-slot ${m.winner === m.p2?.id ? 'p-winner' : ''}">
+                        <span>${m.p2 ? m.p2.name : '---'}</span> <b style="color:var(--primary); font-size: 1rem;">${m.p2?.id !== 'bye' ? (playerList[m.p2.id]?.score || 0) : ''}</b>
+                    </div>
+                </div>`;
+            }).join('');
+            
+            let phaseData = phaseInfo[sysState.phase] || phaseInfo['prelims'];
+            let roundLabelText = `${phaseData.name} - Round ${sysState.roundIndex}/${phaseData.maxRounds}`;
+
+            const hostPrompt = document.getElementById('host-prompt-display'); const hostImg = document.getElementById('host-image-display');
+            const hostBlanks = document.getElementById('host-word-blanks'); const roundLabel = document.getElementById('round-label');
+            const raceBtn = document.getElementById('race-btn'); const advBtn = document.getElementById('advance-btn');
+
+            roundLabel.innerText = roundLabelText;
+
+            if (sysState.status === 'playing' && sysState.currentQ) {
+                if (sysState.currentQ.promptText) { hostPrompt.innerText = sysState.currentQ.promptText; hostPrompt.style.display = 'block'; } else { hostPrompt.style.display = 'none'; }
+                hostBlanks.innerText = sysState.currentQ.answer.replace(/[A-Z0-9]/gi, '_ '); 
+                if (sysState.currentQ.imageBase64) { hostImg.src = sysState.currentQ.imageBase64; hostImg.style.display = 'block'; } else { hostImg.style.display = 'none'; }
+                
+                raceBtn.innerText = "FORCE END QUESTION";
+                raceBtn.style.background = "var(--danger)";
+                raceBtn.style.display = 'inline-block';
+                advBtn.style.display = 'none';
+            } else {
+                hostBlanks.innerText = "";
+                hostPrompt.style.display = 'none'; hostImg.style.display = 'none';
+                
+                raceBtn.innerText = "START QUESTION";
+                raceBtn.style.background = "var(--secondary)";
+                raceBtn.style.display = allFinished ? 'none' : 'inline-block';
+                advBtn.style.display = allFinished ? 'inline-block' : 'none';
+            }
+            document.getElementById('abort-btn').style.display = 'inline-block';
+        }
+
+        function updateWaitScreen() {
+            const status = document.getElementById('wait-status'); const sub = document.getElementById('wait-subtext');
+            const myMatch = (sysState.matches || []).find(m => m.p1.id === myId || m.p2?.id === myId);
+            
+            if (sysState.status === 'lobby') { status.innerText = "You're In!"; sub.innerText = "Look at the Smartboard."; }
+            else if (!myMatch) { status.innerText = "Waiting..."; sub.innerText = "Not in this match."; }
+            else if (myMatch.winner) { 
+                status.innerText = myMatch.winner === myId ? "MATCH WON! 🏆" : "MATCH LOST 💨"; 
+                sub.innerText = "Look at the Smartboard for your points!"; 
+            }
+            else { status.innerText = "Get Ready!"; sub.innerText = "Teacher is starting race."; }
+        }
+
+        // ==========================================
+        // 7. PLACEMENT MINIGAME & PHYSICS
+        // ==========================================
+        function startPhysics() {
+            cancelAnimationFrame(physicsLoop);
+            const sea = document.getElementById('letter-sea');
+            
+            function update() {
+                const box = sea.getBoundingClientRect(); 
+                for(let i=0; i<bubblesData.length; i++) {
+                    for(let j=i+1; j<bubblesData.length; j++) {
+                        let b1 = bubblesData[i]; let b2 = bubblesData[j];
+                        let dx = b2.x - b1.x; let dy = b2.y - b1.y;
+                        let dist = Math.hypot(dx, dy); let minDist = b1.radius + b2.radius;
+                        if(dist < minDist) {
+                            let overlap = minDist - dist; let nx = dx / dist || 1; let ny = dy / dist || 0;
+                            b1.x -= nx * overlap / 2; b1.y -= ny * overlap / 2;
+                            b2.x += nx * overlap / 2; b2.y += ny * overlap / 2;
+                            let p = b1.vx * nx + b1.vy * ny - b2.vx * nx - b2.vy * ny;
+                            b1.vx -= p * nx; b1.vy -= p * ny; b2.vx += p * nx; b2.vy += p * ny;
+                        }
+                    }
+                }
+                bubblesData.forEach(b => {
+                    b.x += b.vx; b.y += b.vy;
+                    if(b.x - b.radius < 0) { b.x = b.radius; b.vx *= -1; }
+                    if(b.x + b.radius > box.width) { b.x = box.width - b.radius; b.vx *= -1; }
+                    if(b.y - b.radius < 0) { b.y = b.radius; b.vy *= -1; }
+                    if(b.y + b.radius > box.height) { b.y = box.height - b.radius; b.vy *= -1; }
+                    b.el.style.left = (b.x - b.radius) + 'px'; b.el.style.top = (b.y - b.radius) + 'px';
+                });
+                physicsLoop = requestAnimationFrame(update);
+            }
+            update();
+        }
+
+        function setupMiniGame() {
+            if(!sysState.currentQ) return;
+            cancelAnimationFrame(physicsLoop); bubblesData = []; localLetterSlots = [];
+            
+            const answer = sysState.currentQ.answer.toUpperCase();
+            document.getElementById('game-word-prompt').innerText = sysState.currentQ.promptText ? "Answer the question!" : "Identify the picture on the board!";
+            
+            const slots = document.getElementById('word-slots'); const sea = document.getElementById('letter-sea');
+            slots.innerHTML = ''; sea.innerHTML = ''; 
+            
+            answer.split('').forEach((char) => {
+                if(char === ' ') { 
+                    const space = document.createElement('div'); space.style.width = '20px'; slots.appendChild(space); 
+                } else { 
+                    const slot = document.createElement('div'); slot.className = 'slot'; slot.dataset.filled = "false";
+                    slot.onclick = () => {
+                        if (slot.dataset.filled === "true") {
+                            playSnd('correct');
+                            slot.dataset.filled = "false"; slot.innerText = "";
+                            slot.style.backgroundColor = "rgba(255,255,255,0.9)"; slot.style.color = "black";
+                            let bObj = slot.bubbleObj; bObj.el.style.display = 'flex';
+                            bObj.x = bObj.radius + Math.random() * 50; bObj.y = bObj.radius + Math.random() * 50;
+                            bubblesData.push(bObj);
+                        }
+                    };
+                    slots.appendChild(slot); localLetterSlots.push(slot); 
+                }
+            });
+
+            let chars = answer.replace(/\s/g, '').split('');
+            const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            chars.push(alphabet[Math.floor(Math.random()*26)]); chars.push(alphabet[Math.floor(Math.random()*26)]); 
+            shuffleArray(chars);
+
+            let box = sea.getBoundingClientRect();
+            let radius = Math.min(box.width, box.height) * 0.12; 
+            if (radius < 30) radius = 30; if (radius > 50) radius = 50;
+
+            chars.forEach((c) => {
+                const b = document.createElement('div'); b.className = 'bubble'; b.innerText = c;
+                b.style.width = (radius*2) + 'px'; b.style.height = (radius*2) + 'px';
+                let bx = radius + Math.random() * (box.width - 2*radius); let by = radius + Math.random() * (box.height - 2*radius);
+                let bubbleObj = { el: b, x: bx, y: by, radius: radius, vx: (Math.random() > 0.5 ? 1 : -1) * (1.5 + Math.random()), vy: (Math.random() > 0.5 ? 1 : -1) * (1.5 + Math.random()) };
+                bubblesData.push(bubbleObj);
+                
+                b.onclick = () => {
+                    let emptySlot = localLetterSlots.find(s => s.dataset.filled !== "true");
+                    if (emptySlot) {
+                        playSnd('correct');
+                        emptySlot.dataset.filled = "true"; emptySlot.innerText = c; emptySlot.bubbleObj = bubbleObj;
+                        bubblesData = bubblesData.filter(d => d !== bubbleObj); b.style.display = 'none';
+                        checkAnswer(answer);
+                    }
+                };
+                sea.appendChild(b);
+            });
+            startPhysics();
+        }
+
+        function triggerBackspace() {
+            let filledSlots = localLetterSlots.filter(s => s.dataset.filled === "true");
+            if (filledSlots.length > 0) { filledSlots[filledSlots.length - 1].onclick(); }
+        }
+
+        function checkAnswer(fullAnswer) {
+            let targetWord = fullAnswer.replace(/\s/g, '');
+            let currentWord = localLetterSlots.map(s => s.innerText).join('');
+            
+            if (currentWord.length === targetWord.length) {
+                if (currentWord === targetWord) {
+                    const matchIndex = sysState.matches.findIndex(m => (m.p1.id === myId || m.p2?.id === myId) && !m.winner);
+                    if (matchIndex !== -1) {
+                        playSnd('win'); 
+                        
+                        // Calculate Time-Based Score
+                        let timeTaken = Date.now() - (sysState.questionStartTime || Date.now());
+                        let secondsTaken = Math.floor(timeTaken / 1000);
+                        let pointsEarned = Math.max(100, 1000 - (secondsTaken * 10)); // Max 1000, drops by 10/sec, min 100
+
+                        let updates = {};
+                        updates[`rooms/${currentRoomCode}/sys/matches/${matchIndex}/winner`] = myId;
+                        
+                        db.ref().update(updates).then(() => {
+                            db.ref(`rooms/${currentRoomCode}/players/${myId}/score`).transaction(s => (s || 0) + pointsEarned);
+                        });
+                        
+                        cancelAnimationFrame(physicsLoop); navigate('screen-wait'); 
+                    }
+                } else {
+                    playSnd('wrong');
+                    localLetterSlots.forEach(s => {
+                        s.style.backgroundColor = "var(--danger)"; s.style.color = "white";
+                        setTimeout(() => { if(s.dataset.filled === "true") { s.style.backgroundColor = "rgba(255,255,255,0.9)"; s.style.color = "black"; } }, 500);
+                    });
+                }
+            }
+        }
+
+        // ==========================================
+        // 8. DASHBOARD & SETTINGS
+        // ==========================================
+        function promptPassword(intent) { currentPinIntent = intent; document.getElementById('overlay').style.display = 'block'; document.getElementById('password-modal').style.display = 'block'; document.getElementById('dash-pass-input').value = ''; }
+        
+        function verifyPassword() { 
+            if (document.getElementById('dash-pass-input').value === appSettings.dashPassword.toString()) { 
+                closeModals(); 
+                if (currentPinIntent === 'host') {
+                    hostCreateRoom();
+                } else if (currentPinIntent === 'dash') {
+                    openDashboard(); 
+                }
+            } else {
+                alert("Incorrect PIN!"); 
+            }
+        }
+        
+        function closeModals() { 
+            document.querySelectorAll('.modal, .overlay').forEach(e => e.style.display = 'none'); 
+        }
+        
+        function openDashboard() {
+            document.getElementById('overlay').style.display = 'block'; document.getElementById('dash-modal').style.display = 'block';
+            document.getElementById('pass-setting-input').value = appSettings.dashPassword; 
+            document.getElementById('config-input').value = JSON.stringify(appSettings.firebaseConfig, null, 2);
+            document.getElementById('font-family').value = appSettings.style.fontFamily; 
+            document.getElementById('font-size').value = appSettings.style.fontSize;
+            document.getElementById('bg-home-url').value = appSettings.bgHome || '';
+            document.getElementById('bg-game-url').value = appSettings.bgGame || '';
+            resetEdit(); renderDashQuestions();
+        }
+
+        function renderDashQuestions() { 
+            document.getElementById('q-list').innerHTML = appSettings.questions.map((q, i) => ` 
+                <div class="q-item"> 
+                    <div style="display:flex; align-items:center;">
+                        ${q.imageBase64 ? `<img src="${q.imageBase64}" style="width:40px; height:40px; object-fit:cover; border-radius:5px; margin-right:10px;">` : '<span style="font-size:24px; margin-right:10px;">📝</span>'} 
+                        <div style="display:flex; flex-direction:column;">
+                            <span style="font-size:0.8rem; color:#666;">Q: ${q.promptText || '(Image only)'}</span>
+                            <b>A: ${q.answer}</b>
+                        </div>
+                    </div> 
+                    <div style="display:flex; gap:5px;">
+                        <button onclick="previewQuestion(${i})" style="background:var(--secondary); color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Preview</button>
+                        <button onclick="editQuestion(${i})" style="background:var(--accent); color:#333; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Edit</button>
+                        <button onclick="deleteQuestion(${i})" style="background:var(--danger); color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">X</button> 
+                    </div>
+                </div>`).join(''); 
+        }
+
+        function previewQuestion(i) {
+            const q = appSettings.questions[i];
+            const promptDisplay = document.getElementById('preview-prompt-display');
+            const imgDisplay = document.getElementById('preview-image-display');
+            const blanksDisplay = document.getElementById('preview-word-blanks');
+            
+            if (q.promptText) {
+                promptDisplay.innerText = q.promptText;
+                promptDisplay.style.display = 'inline-block';
+            } else {
+                promptDisplay.style.display = 'none';
+            }
+            
+            blanksDisplay.innerText = q.answer.replace(/[A-Z0-9]/gi, '_ ');
+            
+            if (q.imageBase64) {
+                imgDisplay.src = q.imageBase64;
+                imgDisplay.style.display = 'inline-block';
+            } else {
+                imgDisplay.style.display = 'none';
+            }
+            
+            document.getElementById('preview-modal').style.display = 'block';
+        }
+
+        function closePreview() {
+            document.getElementById('preview-modal').style.display = 'none';
+        }
+
+        function deleteQuestion(i) {
+            appSettings.questions.splice(i, 1);
+            if (editIndex === i) resetEdit();
+            else if (editIndex > i) editIndex--;
+            renderDashQuestions();
+        }
+
+        function editQuestion(i) {
+            editIndex = i;
+            const q = appSettings.questions[i];
+            document.getElementById('new-q-prompt').value = q.promptText || "";
+            document.getElementById('new-q-answer').value = q.answer || "";
+            document.getElementById('add-q-btn').innerText = "UPDATE QUESTION";
+            document.getElementById('add-q-btn').className = "btn btn-orange";
+        }
+
+        function resetEdit() {
+            editIndex = -1;
+            document.getElementById('new-q-prompt').value = ''; 
+            document.getElementById('new-q-img').value = ''; 
+            document.getElementById('new-q-answer').value = '';
+            document.getElementById('add-q-btn').innerText = "+ ADD TO BANK";
+            document.getElementById('add-q-btn').className = "btn btn-green";
+        }
+
+        function addCustomQuestion() { 
+            const promptText = document.getElementById('new-q-prompt').value.trim(); 
+            const answerText = document.getElementById('new-q-answer').value.trim().toUpperCase();
+            if(!answerText) return alert("You MUST enter a Correct Answer!");
+            const file = document.getElementById('new-q-img').files[0]; 
+            
+            const saveQ = (base64) => {
+                const qObj = { promptText: promptText, imageBase64: base64, answer: answerText };
+                if (editIndex > -1) {
+                    if (!base64 && !file && appSettings.questions[editIndex].imageBase64) {
+                        qObj.imageBase64 = appSettings.questions[editIndex].imageBase64;
+                    }
+                    appSettings.questions[editIndex] = qObj;
+                } else {
+                    appSettings.questions.push(qObj);
+                }
+                resetEdit();
+                renderDashQuestions();
+            };
+
+            if(file) { 
+                const reader = new FileReader(); 
+                reader.onload = (e) => saveQ(e.target.result); 
+                reader.readAsDataURL(file); 
+            } else { 
+                saveQ(null); 
+            } 
+        }
+
+        function handleBgUpload(type, event) { 
+            const file = event.target.files[0]; if(!file) return; 
+            const reader = new FileReader(); 
+            reader.onload = (e) => { 
+                if(type === 'home') { appSettings.bgHome = e.target.result; document.getElementById('bg-home-url').value = ''; }
+                else { appSettings.bgGame = e.target.result; document.getElementById('bg-game-url').value = ''; }
+                alert(`${type} background uploaded temporarily. Don't forget to SAVE!`); 
+            }; 
+            reader.readAsDataURL(file); 
+        }
+        
+        function clearBackgrounds() { 
+            appSettings.bgHome = ""; appSettings.bgGame = ""; 
+            document.getElementById('bg-home-url').value = ''; document.getElementById('bg-game-url').value = '';
+            alert("Backgrounds cleared! Click SAVE."); 
+        }
+        
+        function saveDash() {
+            const rawConfig = document.getElementById('config-input').value;
+            try { if(rawConfig.trim() !== "") { appSettings.firebaseConfig = JSON.parse(rawConfig); } } 
+            catch (e) { alert("Format Error in Firebase Configuration! Please ensure it is valid JSON with quotation marks."); return; }
+
+            appSettings.dashPassword = document.getElementById('pass-setting-input').value.toString(); 
+            appSettings.style.fontFamily = document.getElementById('font-family').value; 
+            appSettings.style.fontSize = document.getElementById('font-size').value;
+            
+            const homeUrl = document.getElementById('bg-home-url').value.trim();
+            const gameUrl = document.getElementById('bg-game-url').value.trim();
+            if(homeUrl !== '') appSettings.bgHome = homeUrl;
+            if(gameUrl !== '') appSettings.bgGame = gameUrl;
+            
+            if(appSettings.questions.length === 0) appSettings.questions = [{promptText: "TEST", imageBase64: null, answer: "TEST"}];
+            
+            try {
+                localStorage.setItem('esl_settings_v16', JSON.stringify(appSettings));
+            } catch(err) {
+                if(err.name === 'QuotaExceededError') {
+                    alert("WARNING: The images/GIFs you uploaded are too large and crashed your browser's memory! Try using the 'Paste URL' option instead, or clear your backgrounds.");
+                    return;
+                }
+            }
+            
+            applyStylesAndBackground(document.querySelector('.screen.active').id); 
+            initFirebaseBase(); 
+            closeModals(); 
+            alert("Settings Applied!");
+        }
+
+        function exportSettings() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appSettings)); a.download = "WordRace.json"; document.body.appendChild(a); a.click(); a.remove(); }
+        
+        function importSettings(event) { 
+            const file = event.target.files[0]; 
+            if (!file) return; 
+            const reader = new FileReader(); 
+            reader.onload = function(e) { 
+                try { 
+                    const imported = JSON.parse(e.target.result); 
+                    appSettings = { ...defaultSettings, ...imported }; 
+                    appSettings.dashPassword = appSettings.dashPassword.toString(); 
+                    
+                    openDashboard(); 
+                    applyStylesAndBackground(document.querySelector('.screen.active').id); 
+                    alert("Settings Imported Successfully!"); 
+                } catch(err) { 
+                    alert("Error reading file. Ensure it is a valid JSON setting file."); 
+                } 
+            }; 
+            reader.readAsText(file); 
+        }
+
+        window.onload = () => { 
+            const saved = localStorage.getItem('esl_settings_v16'); 
+            if (saved) { 
+                try { 
+                    appSettings = { ...defaultSettings, ...JSON.parse(saved) }; 
+                } catch(e){} 
+            } 
+            applyStylesAndBackground('screen-start'); 
+        };
+    </script>
+</body>
+</html>
