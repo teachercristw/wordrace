@@ -777,21 +777,51 @@
             let currentPhaseData = getPhaseInfo()[sysState.phase];
             
             if (sysState.roundIndex < currentPhaseData.maxRounds) {
+                // We are still in the middle of a phase, just go to the next round
                 let active = Object.values(playerList).filter(p => !p.eliminated && p.online);
                 let newMatches = createMatches(active);
                 db.ref(`rooms/${currentRoomCode}/sys`).update({ 
                     status: 'bracket', matches: newMatches, currentQ: null, roundIndex: sysState.roundIndex + 1 
                 });
             } else {
+                // A phase has finished! Time to eliminate and advance.
                 let active = Object.values(playerList).filter(p => !p.eliminated);
-                active.sort((a,b) => (b.score||0) - (a.score||0));
+                active.sort((a,b) => (b.score||0) - (a.score||0)); // Sort by highest score
                 
                 if (currentPhaseData.nextPhase === 'champion') {
                     db.ref(`rooms/${currentRoomCode}/sys`).update({ status: 'champion', champion: active[0] });
                     return;
                 }
 
+                // --- NEW DYNAMIC CUTOFF LOGIC ---
                 let cutoff = currentPhaseData.cutoff;
+                let nextPhase = currentPhaseData.nextPhase;
+
+                // If exiting Prelims, dynamically calculate the fairest cut based on class size
+                if (sysState.phase === 'prelims') {
+                    if (active.length > 8) {
+                        cutoff = 8;
+                        nextPhase = 'quarters';
+                    } else if (active.length > 4) {
+                        cutoff = 4;
+                        nextPhase = 'semis'; // Skip quarters
+                    } else {
+                        cutoff = 2;
+                        nextPhase = 'finals'; // Skip quarters and semis
+                    }
+                } 
+                // Make sure quarters always cuts to 4
+                else if (sysState.phase === 'quarters') {
+                    cutoff = 4;
+                    nextPhase = 'semis';
+                }
+                // Make sure semis always cuts to 2
+                else if (sysState.phase === 'semis') {
+                    cutoff = 2;
+                    nextPhase = 'finals';
+                }
+                // ---------------------------------
+
                 let advancing = active.slice(0, cutoff);
                 let eliminated = active.slice(cutoff);
                 
@@ -799,12 +829,11 @@
                 eliminated.forEach(p => { updates[`rooms/${currentRoomCode}/players/${p.id}/eliminated`] = true; });
                 
                 db.ref().update(updates).then(() => {
-                    let newPhase = currentPhaseData.nextPhase;
                     let onlineAdvancing = advancing.filter(p => p.online);
                     let newMatches = createMatches(onlineAdvancing);
                     
                     db.ref(`rooms/${currentRoomCode}/sys`).update({ 
-                        status: 'bracket', phase: newPhase, roundIndex: 1, matches: newMatches, currentQ: null 
+                        status: 'bracket', phase: nextPhase, roundIndex: 1, matches: newMatches, currentQ: null 
                     });
                 });
             }
