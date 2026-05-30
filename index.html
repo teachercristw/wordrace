@@ -446,27 +446,20 @@
     </div>
 
     <script>
-        // ==========================================
+// ==========================================
         // 1. STATE & DEFAULT SETTINGS
         // ==========================================
         const defaultSettings = {
             dashPassword: "1037440", 
+            // V--- PASTE YOUR LINK HERE ---V
+            autoFetchUrl: "https://raw.githubusercontent.com/teachercristw/wordrace/refs/heads/main/WordRace.json", 
             firebaseConfig: {
                 apiKey: "AIzaSyAeW720p-jxvUKu4wGjltbV-7PzXXH2Lv8",
                 authDomain: "tournament-64337.firebaseapp.com",
                 databaseURL: "https://tournament-64337-default-rtdb.firebaseio.com",
                 projectId: "tournament-64337"
             },
-            questions: [
-                { promptText: "What color is an Apple?", imageBase64: null, answer: "RED" },
-                { promptText: "Identify this animal:", imageBase64: null, answer: "TIGER" }
-            ],
-            style: { fontFamily: "'Quicksand', sans-serif", fontSize: "16px" },
-            bgHome: "https://cdn.jsdelivr.net/gh/teachercristw/wordraceroundrobin@main/word%20race.mp4", 
-            bgGame: "https://cdn.jsdelivr.net/gh/teachercristw/wordraceroundrobin@main/word%20race.mp4",
-            savedClasses: [],
-            phaseRounds: { prelims: 5, quarters: 3, semis: 2, finals: 1 }
-        };
+            // ... rest of the code stays the same
 
         let appSettings = { ...defaultSettings };
         let db; let role = null; let myName = null; let myId = null; let currentPinIntent = ''; 
