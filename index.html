@@ -7,6 +7,7 @@
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     
     <link href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&family=Boogaloo&family=Bubblegum+Sans&family=Chewy&family=Comic+Neue:wght@400;700&family=Fredoka+One&family=Open+Sans:wght@400;700&family=Patrick+Hand&family=Quicksand:wght@400;700&family=Short+Stack&display=swap" rel="stylesheet">
 
@@ -522,9 +523,22 @@
         // ==========================================
         function initFirebaseBase() {
             try {
-                if (firebase.apps.length === 0) firebase.initializeApp(appSettings.firebaseConfig); db = firebase.database();
-                db.ref('.info/connected').on('value', snap => document.getElementById('status-indicator').style.background = snap.val() ? "var(--success)" : "var(--danger)");
-            } catch (e) { console.log("Firebase not connected."); }
+                if (firebase.apps.length === 0) {
+                    firebase.initializeApp(appSettings.firebaseConfig);
+                }
+                
+                // NEW: Log the user/smartboard in silently in the background
+                firebase.auth().signInAnonymously().catch(function(error) {
+                    console.log("Anonymous Auth failed:", error);
+                });
+
+                db = firebase.database();
+                db.ref('.info/connected').on('value', snap => {
+                    document.getElementById('status-indicator').style.background = snap.val() ? "var(--success)" : "var(--danger)";
+                });
+            } catch (e) { 
+                console.log("Firebase not connected."); 
+            }
         }
 
         function populateClassDropdown() {
