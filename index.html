@@ -378,6 +378,12 @@
                 </div>
             </div>
         </div>
+        
+        <div class="dash-section">
+            <label>Cloud Sync (Auto-Fetch from GitHub)</label>
+            <p style="font-size:0.8rem; color:#666; margin-top:0;">Paste the <b>RAW</b> link to your JSON file on GitHub. The game will automatically download the newest version every time you refresh!</p>
+            <input type="text" id="auto-fetch-url" class="dash-input" placeholder="https://raw.githubusercontent.com/.../WordRace.json">
+        </div>
 
         <div class="dash-section">
             <label>Class Rosters & Management</label>
@@ -446,20 +452,28 @@
     </div>
 
     <script>
-// ==========================================
+        // ==========================================
         // 1. STATE & DEFAULT SETTINGS
         // ==========================================
         const defaultSettings = {
             dashPassword: "1037440", 
-            // V--- PASTE YOUR LINK HERE ---V
-            autoFetchUrl: "https://raw.githubusercontent.com/teachercristw/wordrace/refs/heads/main/WordRace.json", 
+            autoFetchUrl: "https://raw.githubusercontent.com/teachercristw/wordrace/refs/heads/main/WordRace.json", // <-- URL IS HARDCODED HERE
             firebaseConfig: {
                 apiKey: "AIzaSyAeW720p-jxvUKu4wGjltbV-7PzXXH2Lv8",
                 authDomain: "tournament-64337.firebaseapp.com",
                 databaseURL: "https://tournament-64337-default-rtdb.firebaseio.com",
                 projectId: "tournament-64337"
             },
-            // ... rest of the code stays the same
+            questions: [
+                { promptText: "What color is an Apple?", imageBase64: null, answer: "RED" },
+                { promptText: "Identify this animal:", imageBase64: null, answer: "TIGER" }
+            ],
+            style: { fontFamily: "'Quicksand', sans-serif", fontSize: "16px" },
+            bgHome: "https://cdn.jsdelivr.net/gh/teachercristw/wordraceroundrobin@main/word%20race.mp4", 
+            bgGame: "https://cdn.jsdelivr.net/gh/teachercristw/wordraceroundrobin@main/word%20race.mp4",
+            savedClasses: [],
+            phaseRounds: { prelims: 5, quarters: 3, semis: 2, finals: 1 }
+        };
 
         let appSettings = { ...defaultSettings };
         let db; let role = null; let myName = null; let myId = null; let currentPinIntent = ''; 
@@ -520,7 +534,6 @@
                     firebase.initializeApp(appSettings.firebaseConfig);
                 }
                 
-                // NEW: Log the user/smartboard in silently in the background
                 firebase.auth().signInAnonymously().catch(function(error) {
                     console.log("Anonymous Auth failed:", error);
                 });
@@ -770,50 +783,43 @@
             let currentPhaseData = getPhaseInfo()[sysState.phase];
             
             if (sysState.roundIndex < currentPhaseData.maxRounds) {
-                // We are still in the middle of a phase, just go to the next round
                 let active = Object.values(playerList).filter(p => !p.eliminated && p.online);
                 let newMatches = createMatches(active);
                 db.ref(`rooms/${currentRoomCode}/sys`).update({ 
                     status: 'bracket', matches: newMatches, currentQ: null, roundIndex: sysState.roundIndex + 1 
                 });
             } else {
-                // A phase has finished! Time to eliminate and advance.
                 let active = Object.values(playerList).filter(p => !p.eliminated);
-                active.sort((a,b) => (b.score||0) - (a.score||0)); // Sort by highest score
+                active.sort((a,b) => (b.score||0) - (a.score||0)); 
                 
                 if (currentPhaseData.nextPhase === 'champion') {
                     db.ref(`rooms/${currentRoomCode}/sys`).update({ status: 'champion', champion: active[0] });
                     return;
                 }
 
-                // --- NEW DYNAMIC CUTOFF LOGIC ---
                 let cutoff = currentPhaseData.cutoff;
                 let nextPhase = currentPhaseData.nextPhase;
 
-                // If exiting Prelims, dynamically calculate the fairest cut based on class size
                 if (sysState.phase === 'prelims') {
                     if (active.length > 8) {
                         cutoff = 8;
                         nextPhase = 'quarters';
                     } else if (active.length > 4) {
                         cutoff = 4;
-                        nextPhase = 'semis'; // Skip quarters
+                        nextPhase = 'semis'; 
                     } else {
                         cutoff = 2;
-                        nextPhase = 'finals'; // Skip quarters and semis
+                        nextPhase = 'finals'; 
                     }
                 } 
-                // Make sure quarters always cuts to 4
                 else if (sysState.phase === 'quarters') {
                     cutoff = 4;
                     nextPhase = 'semis';
                 }
-                // Make sure semis always cuts to 2
                 else if (sysState.phase === 'semis') {
                     cutoff = 2;
                     nextPhase = 'finals';
                 }
-                // ---------------------------------
 
                 let advancing = active.slice(0, cutoff);
                 let eliminated = active.slice(cutoff);
@@ -959,9 +965,6 @@
             `).join('');
         }
 
-        // ==========================================
-        // EDITED: renderBracket()
-        // ==========================================
         function renderBracket() {
             let allFinished = true;
             document.getElementById('bracket-display').innerHTML = (sysState.matches || []).map(m => {
@@ -991,7 +994,6 @@
                 hostBlanks.innerText = sysState.currentQ.answer.replace(/[A-Z0-9]/gi, '_ '); 
                 if (sysState.currentQ.imageBase64) { hostImg.src = sysState.currentQ.imageBase64; hostImg.style.display = 'block'; } else { hostImg.style.display = 'none'; }
                 
-                // NEW: Show visual confirmation if everyone has answered during active question
                 if (allFinished) {
                     raceBtn.innerText = "EVERYONE ANSWERED (END Q)";
                     raceBtn.style.background = "var(--success)";
@@ -1001,7 +1003,6 @@
                 }
                 raceBtn.style.display = 'inline-block';
                 
-                // Show Advance Button when all finished during a question so you can click it instantly
                 advBtn.innerText = "NEXT ROUND";
                 advBtn.style.display = allFinished ? 'inline-block' : 'none';
 
@@ -1195,6 +1196,7 @@
             document.getElementById('font-size').value = appSettings.style.fontSize;
             document.getElementById('bg-home-url').value = appSettings.bgHome || '';
             document.getElementById('bg-game-url').value = appSettings.bgGame || '';
+            document.getElementById('auto-fetch-url').value = appSettings.autoFetchUrl || '';
             
             document.getElementById('rounds-prelims').value = appSettings.phaseRounds?.prelims || 5;
             document.getElementById('rounds-quarters').value = appSettings.phaseRounds?.quarters || 3;
@@ -1417,6 +1419,8 @@
             if(homeUrl !== '') appSettings.bgHome = homeUrl;
             if(gameUrl !== '') appSettings.bgGame = gameUrl;
             
+            appSettings.autoFetchUrl = document.getElementById('auto-fetch-url').value.trim();
+
             appSettings.phaseRounds = {
                 prelims: Math.max(1, parseInt(document.getElementById('rounds-prelims').value) || 5),
                 quarters: Math.max(1, parseInt(document.getElementById('rounds-quarters').value) || 3),
@@ -1438,7 +1442,7 @@
             applyStylesAndBackground(document.querySelector('.screen.active').id); 
             initFirebaseBase(); 
             closeModals(); 
-            alert("Settings Applied!");
+            alert("Settings Applied! If you added an Auto-Fetch URL, it will load on your next refresh.");
         }
 
         function exportSettings() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appSettings)); a.download = "WordRace.json"; document.body.appendChild(a); a.click(); a.remove(); }
@@ -1463,13 +1467,35 @@
             reader.readAsText(file); 
         }
 
-        window.onload = () => { 
-            const saved = localStorage.getItem('esl_settings_v16'); 
+        // NEW: ASYNC WINDOW ONLOAD TO HANDLE THE CLOUD SYNC
+        window.onload = async () => { 
+            let saved = localStorage.getItem('esl_settings_v16'); 
             if (saved) { 
                 try { 
                     appSettings = { ...defaultSettings, ...JSON.parse(saved) }; 
                 } catch(e){} 
             } 
+            
+            // AUTO-FETCH LOGIC
+            if (appSettings.autoFetchUrl && appSettings.autoFetchUrl.trim() !== '') {
+                try {
+                    // Create URL and add a cache-buster so the browser is forced to download the newest version
+                    let fetchUrl = new URL(appSettings.autoFetchUrl);
+                    fetchUrl.searchParams.append('nocache', Date.now());
+                    
+                    const response = await fetch(fetchUrl.toString(), { cache: 'no-store' });
+                    if (response.ok) {
+                        const fetchedSettings = await response.json();
+                        // Merge the downloaded settings, but protect the autoFetchUrl so it doesn't get overwritten and deleted
+                        appSettings = { ...appSettings, ...fetchedSettings, autoFetchUrl: appSettings.autoFetchUrl };
+                        localStorage.setItem('esl_settings_v16', JSON.stringify(appSettings));
+                        console.log("Success: Auto-fetched latest JSON from GitHub.");
+                    }
+                } catch (err) {
+                    console.warn("Auto-fetch failed. Using local settings.", err);
+                }
+            }
+
             applyStylesAndBackground('screen-start'); 
         };
     </script>
